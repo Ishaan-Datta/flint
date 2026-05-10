@@ -4,18 +4,31 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anstyle = "1.0.14"
 anyhow = "1.0.102"
 chrono = "0.4.44"
-clap = { version = "4.6.0", default-features = true, features = ["derive"] }
+clap = { version = "4.6.0", default-features = true, features = [
+    "derive",
+    "env",
+] }
+clap-verbosity-flag = { version = "3.0.4", default-features = false, features = [
+    "tracing",
+] }
 indicatif = { version = "0.18.4", features = ["rayon"] }
 rayon = "1.11.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
+textwrap = { version = "0.16.2", features = ["terminal_size"] }
 thiserror = "2.0.18"
 tracing = "0.1.44"
 tracing-indicatif = "0.3.14"
-tracing-subscriber = "0.3.23"
+tracing-subscriber = { version = "0.3.23", default-features = true, features = [
+    "ansi",
+    "fmt",
+    "env-filter",
+] }
 tree-sitter = "0.26.8"
 tree-sitter-nix = "0.3.0"
 unicode-width = "0.2.2"
+wait-timeout = "0.2.1"
 yansi = "1.0.1"
