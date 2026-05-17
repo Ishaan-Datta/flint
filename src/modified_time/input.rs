@@ -3,6 +3,7 @@ use crate::errors::StatusError;
 use crate::modified_time::format_age;
 
 use std::cmp;
+use std::time::Duration;
 use yansi::Paint;
 use yansi::Painted;
 
@@ -79,7 +80,7 @@ impl Input {
         }
     }
 
-    pub(crate) fn get_status(&mut self, threshold: u64) {
+    pub(crate) fn get_status(&mut self, threshold: Duration) {
         match &self.remote_time {
             Err(e) => {
                 tracing::debug!("Failed to fetch input {}: {e}", self.name);
@@ -90,7 +91,7 @@ impl Input {
                 Some(local_time) => {
                     if local_time > *remote_time {
                         self.status = InputStatus::Error(StatusError::Less)
-                    } else if remote_time - local_time > threshold as i64 {
+                    } else if remote_time - local_time > threshold.as_secs() as i64 {
                         self.status = InputStatus::Stale
                     } else {
                         self.status = InputStatus::Fresh

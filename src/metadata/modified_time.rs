@@ -12,7 +12,7 @@ use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use std::cmp;
 use std::collections::HashMap;
-use std::process::Command;
+use std::path::PathBuf;
 use std::process::exit;
 use std::time::Duration;
 use tracing::info_span;
@@ -21,14 +21,15 @@ use unicode_width::UnicodeWidthStr;
 use yansi::Paint;
 use yansi::Painted;
 
-// add "--no-write-lock-file after --json"
-const INPUT_MODIFIED_CMD: &str =
-    r#"nix --refresh flake metadata {URL} --json | jq -r '.lastModified'"#;
-const LAST_MODIFIED_CMD: &str = r#"nix flake metadata --json --no-write-lock-file . | jq -r '.locks.nodes | map_values(.locked.lastModified)'"#;
+// TODO: add "--no-write-lock-file after --json"
+const REMOTE_MODIFIED_TIME_CMD: &str =
+    r#"nix --refresh flake metadata {URL} --json | jq -er '.lastModified'"#;
+
+const LOCAL_MODIFIED_TIME_CMD: &str = r#"nix flake metadata --json --no-write-lock-file {PATH} | jq -er '.locks.nodes | map_values(.locked.lastModified)'"#;
 
 /// Fetches new modified time for a single flake url
-pub fn get_new_modified_time(url: &str, timeout: Duration) -> Result<i64, FetchError> {
-    let cmd = INPUT_MODIFIED_CMD.replace("{URL}", url);
+pub(crate) fn get_remote_modified_time(url: &str, timeout: Duration) -> Result<i64, FetchError> {
+    let cmd = REMOTE_MODIFIED_TIME_CMD.replace("{URL}", url);
     let output = run_command_with_timeout(cmd, timeout)?;
 
     if output.status.success() {
@@ -45,36 +46,44 @@ pub fn get_new_modified_time(url: &str, timeout: Duration) -> Result<i64, FetchE
 }
 
 /// Gets the last updated time for all flake inputs
-// TODO: make this use the command thing like the one above
-pub fn get_last_modified_times() -> Result<HashMap<String, Option<i64>>, anyhow::Error> {
-    let mod_output = Command::new("sh")
-        .args(["-c", LAST_MODIFIED_CMD])
-        .output()?;
-    if mod_output.status.success() {
-        let mod_map: HashMap<String, Option<i64>> = serde_json::from_slice(&mod_output.stdout)?;
+pub(crate) fn get_all_local_modified_times(
+    timeout: Duration,
+    flake_dir_path: PathBuf,
+) -> Result<HashMap<String, Option<i64>>, FetchError> {
+    let cmd = LOCAL_MODIFIED_TIME_CMD.replace("{PATH}", &flake_dir_path.display().to_string());
+    let output = run_command_with_timeout(cmd, timeout)?;
+
+    if output.status.success() {
+        let mod_map: HashMap<String, Option<i64>> = serde_json::from_slice(&output.stdout)?;
         tracing::trace!("{mod_map:#?}");
         Ok(mod_map)
     } else {
-        anyhow::bail!("Failed to get input modified times: format error here...");
+        let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
+        let code = output.status.code().unwrap_or(1);
+        Err(FetchError::CommandError(CommandError::NonZeroExitCode(
+            code, stderr_str, stdout_str,
+        )))
     }
 }
 
-// TODO: add proper error handling, dont return errors here, top level
-pub fn print_input_summary(threshold: u64, timeout: u64, quiet: bool) {
+/// Print the formatted summary for input modified times
+pub fn print_input_summary(threshold: Duration, timeout: Duration, quiet: bool, path: PathBuf) {
     let start_time = std::time::Instant::now();
-    let timeout = Duration::from_millis(timeout);
 
     tracing::info!("> Checking flake inputs for updates");
-    let current_times = get_last_modified_times()?;
+    let current_times = get_all_local_modified_times(timeout, path).unwrap_or_else(|e| {
+        // TODO: make these had red ANSI bolded [ERROR]
+        tracing::error!("Failed to get input urls: {e}");
+        exit(1);
+    });
 
-    let input_urls = get_input_urls(timeout)
-        .map_err(|e| {
-            tracing::debug!("Failed to get input urls: {e}");
-            exit(1);
-        })
-        .unwrap();
+    let input_urls = get_input_urls(timeout).unwrap_or_else(|e| {
+        tracing::error!("Failed to get input urls: {e}");
+        exit(1);
+    });
 
-    let fetched_times = get_modified_times(input_urls, timeout);
+    let fetched_times = get_all_remote_modified_times(input_urls, timeout);
 
     if current_times.len() != fetched_times.len() {
         tracing::debug!(
@@ -150,8 +159,8 @@ pub fn print_input_summary(threshold: u64, timeout: u64, quiet: bool) {
     }
 }
 
-// TODO: rename
-pub fn get_modified_times(
+/// Fetches the remote modified times for all flake input URLS
+pub(crate) fn get_all_remote_modified_times(
     url_map: HashMap<String, String>,
     timeout: Duration,
 ) -> HashMap<String, Result<i64, FetchError>> {
@@ -181,7 +190,7 @@ pub fn get_modified_times(
                 item_span.pb_set_style(&ProgressStyle::with_template("  {spinner} {msg}").unwrap());
                 let ts = item_span.in_scope(|| {
                     item_span.pb_set_message(&format!("Fetching {url}"));
-                    let ts = get_new_modified_time(url, timeout);
+                    let ts = get_remote_modified_time(url, timeout);
                     match &ts {
                         Ok(_) => {
                             item_span.pb_set_message(&format!("Fetched {url}"));

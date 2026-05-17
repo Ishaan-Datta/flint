@@ -1,8 +1,14 @@
-use std::collections::HashMap;
-use std::process::Command;
+use crate::command::with_command_spinner;
+use crate::errors::CommandError;
+use crate::errors::FetchError;
 
-const DEPENDENCIES_CMD: &str = r#"nix flake metadata --json --no-write-lock-file . \
-  | jq '.locks.nodes
+use std::cmp;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::time::Duration;
+
+const DEPENDENCIES_CMD: &str = r#"sleep 10 && nix flake metadata --json --recreate-lock-file --no-write-lock-file {PATH} \
+  | jq -e '.locks.nodes
         | map_values(
             (.inputs // {})
             | map_values(
@@ -13,87 +19,110 @@ const DEPENDENCIES_CMD: &str = r#"nix flake metadata --json --no-write-lock-file
           )'
 "#;
 
-/// Get the current input dependencies for the existing flake.nix
-// TODO: make this use the command module
-pub fn get_input_deps() -> Result<HashMap<String, Vec<String>>, anyhow::Error> {
-    let deps_output = Command::new("sh").args(["-c", DEPENDENCIES_CMD]).output()?;
-    if deps_output.status.success() {
-        let deps_map: HashMap<String, HashMap<String, Vec<String>>> =
-            serde_json::from_slice(&deps_output.stdout)?;
-        let mut filtered_deps_map = deps_map.clone();
-        for input in deps_map.keys() {
-            if deps_map.get(input).expect("Checked").is_empty() {
-                filtered_deps_map.remove(input);
-            }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct InputReplacement {
+    pub input_dependency: String,
+    pub old_dependency_target: String,
+    pub new_dependency_target: String,
+}
+
+impl InputReplacement {
+    fn new(
+        input_dependency: &str,
+        old_dependency_target: &str,
+        new_dependency_target: &str,
+    ) -> Self {
+        Self {
+            input_dependency: input_dependency.to_string(),
+            old_dependency_target: old_dependency_target.to_string(),
+            new_dependency_target: new_dependency_target.to_string(),
         }
-        // inputs with transitive deps
-        tracing::trace!("{filtered_deps_map:#?}");
-
-        let mut defined = Vec::<&String>::new();
-        if filtered_deps_map.contains_key("root") {
-            defined.extend(
-                filtered_deps_map
-                    .get("root")
-                    .expect("Checked before")
-                    .keys(),
-            );
-            tracing::trace!("defined: {defined:#?}")
-        }
-
-        let mut dupe_map = HashMap::<String, Vec<String>>::new();
-        for (input, deps) in filtered_deps_map.iter() {
-            if defined.contains(&input) {
-                tracing::trace!("{deps:#?}");
-
-                let mut new_targets = Vec::<String>::new();
-                for (dependency, target) in deps.iter() {
-                    if target.len() > 1 || target.is_empty() {
-                        tracing::debug!("irregular target: {target:?} for {dependency}");
-                    } else {
-                        if ends_with_2_to_99(&target[0]) {
-                            tracing::debug!("Found potential duplicate: {}", target[0]);
-
-                            // TODO: should make sure that the dependency is declared somewhere else in the thing, otherwise comment strange things are afoot..
-                            let new_target =
-                                format!("inputs.{dependency}.follows = \"{dependency}\";");
-                            tracing::trace!(
-                                "[Input: {input}]Setting target for {dependency}: {new_target}"
-                            );
-                            new_targets.push(new_target);
-                        }
-                    }
-                }
-                if !new_targets.is_empty() {
-                    dupe_map.insert(input.to_string(), new_targets);
-                }
-            } else {
-                // todo: this is still including "root"
-                tracing::debug!("input: {input} not found in the declared list");
-            }
-        }
-
-        tracing::trace!("{dupe_map:#?}");
-        return Ok(dupe_map);
-    } else {
-        anyhow::bail!("failure");
     }
 }
 
-fn lint_flake_inputs(fix: bool, dry_run: bool, quiet: bool) {
-    let dupe_map = get_input_deps().unwrap();
-    // if no fix or check_updates, it will jsut check for duplicate entries, and report them
+impl PartialOrd for InputReplacement {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
-    // // path for fixing:
-    // let source = fs::read_to_string("flake.nix")?;
-    // let rewritten = rewrite_flake_inputs(&source, dupe_map);
-    // tracing::trace!("{rewritten}");
-    // fs::write("temp.nix", rewritten)?;
+impl cmp::Ord for InputReplacement {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.input_dependency.cmp(&other.input_dependency)
+    }
+}
 
-    // // path for getting url times:
-    // let input_ruls = get_input_urls()?;
-    // get_modified_times(input_ruls);
+impl From<InputReplacement> for String {
+    fn from(r: InputReplacement) -> Self {
+        r.new_dependency_target
+    }
+}
 
-    // for each path, get the error if there is one, print it and then exit 1
+/// Get the current input dependencies for the existing flake.nix
+pub(crate) fn get_input_deps(
+    flake_dir_path: &PathBuf,
+    timeout: Duration,
+) -> Result<HashMap<String, Vec<InputReplacement>>, FetchError> {
+    let cmd = DEPENDENCIES_CMD.replace("{PATH}", &flake_dir_path.display().to_string());
+    let output = with_command_spinner!("Parsing flake input dependency tree", cmd, timeout)?;
+
+    if output.status.success() {
+        let mut deps_map: HashMap<String, HashMap<String, Vec<String>>> =
+            serde_json::from_slice(&output.stdout)?;
+
+        if deps_map.is_empty() {
+            tracing::warn!("Found empty input dependencies map, is the flake blank?");
+            return Err(FetchError::NoFlakeInputs);
+        }
+
+        tracing::trace!("Dependencies map before filtering: {deps_map:#?}");
+
+        let root_entry = match deps_map.get("root") {
+            Some(val) => val.clone(),
+            None => {
+                tracing::warn!("Missing flake root entry, can't validate user_inputs");
+                return Err(FetchError::MalformedFlake);
+            }
+        };
+
+        deps_map.retain(|k, deps| k != "root" && !deps.is_empty() && root_entry.contains_key(k));
+        tracing::trace!("Dependencies map after filtering: {deps_map:#?}");
+
+        let mut dupe_map = HashMap::<String, Vec<InputReplacement>>::new();
+        for (input, deps) in deps_map.iter() {
+            tracing::trace!("Dependencies of {input}: {deps:#?}");
+
+            let mut new_targets = Vec::<InputReplacement>::new();
+            for (dependency, target) in deps.iter() {
+                if target.len() > 1 || target.is_empty() {
+                    tracing::trace!(
+                        "[{input}]: Found irregular target: {target:?} for {dependency}"
+                    );
+                } else {
+                    if ends_with_2_to_99(&target[0]) {
+                        let new_target = format!("inputs.{dependency}.follows = \"{dependency}\";");
+                        tracing::trace!("[{input}]: Setting target for {dependency}: {new_target}");
+                        let replacement =
+                            InputReplacement::new(dependency, &target[0], &new_target);
+                        new_targets.push(replacement);
+                    }
+                }
+            }
+            if !new_targets.is_empty() {
+                dupe_map.insert(input.to_string(), new_targets);
+            }
+        }
+
+        tracing::debug!("Final duplicate dependency map: {dupe_map:#?}");
+        return Ok(dupe_map);
+    } else {
+        let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
+        let code = output.status.code().unwrap_or(1);
+        Err(FetchError::CommandError(CommandError::NonZeroExitCode(
+            code, stderr_str, stdout_str,
+        )))
+    }
 }
 
 fn ends_with_2_to_99(s: &str) -> bool {

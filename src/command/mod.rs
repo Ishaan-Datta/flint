@@ -11,14 +11,14 @@ use std::time::Duration;
 use wait_timeout::ChildExt;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct CommandResult {
+pub(crate) struct CommandResult {
     pub status: ExitStatus,
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
 }
 
 impl CommandResult {
-    fn new(
+    pub(crate) fn new(
         mut stdout: ChildStdout,
         mut stderr: ChildStderr,
         status: ExitStatus,
@@ -37,7 +37,7 @@ impl CommandResult {
     }
 }
 
-pub fn run_command_with_timeout(
+pub(crate) fn run_command_with_timeout(
     cmd: String,
     timeout: Duration,
 ) -> Result<CommandResult, CommandError> {
@@ -47,6 +47,7 @@ pub fn run_command_with_timeout(
         .stderr(Stdio::piped())
         .spawn()
         .or_else(|_| anyhow::bail!("Command: {cmd} failed to start"))?;
+
     let stdout = child.stdout.take().ok_or(anyhow!(
         "Could not make stdout handle for command sub-process"
     ))?;
@@ -67,3 +68,30 @@ pub fn run_command_with_timeout(
         }
     }
 }
+
+macro_rules! with_command_spinner {
+    ($progress_msg:expr, $cmd:expr, $timeout:expr $(,)?) => {{
+        use crate::command::run_command_with_timeout;
+        use indicatif::ProgressStyle;
+        use tracing_indicatif::span_ext::IndicatifSpanExt;
+
+        let header_span = tracing::info_span!("run_command");
+
+        header_span.pb_set_style(
+            &ProgressStyle::with_template("{spinner} {msg}").expect("valid progress template"),
+        );
+
+        header_span.pb_set_message($progress_msg);
+
+        let header_enter = header_span.enter();
+
+        let result = run_command_with_timeout($cmd, $timeout);
+
+        drop(header_enter);
+        drop(header_span);
+
+        result
+    }};
+}
+
+pub(crate) use with_command_spinner;

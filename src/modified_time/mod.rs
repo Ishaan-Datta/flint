@@ -1,5 +1,5 @@
 mod display;
 mod input;
 
-pub use display::*;
-pub use input::*;
+pub(crate) use display::*;
+pub(crate) use input::*;

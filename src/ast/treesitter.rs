@@ -1,88 +1,14 @@
-use anyhow::{Context, Result, anyhow, bail};
-use std::collections::HashMap;
+use anyhow::{Result, anyhow};
 use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
 
-pub fn rewrite_flake_inputs(
-    source: &str,
-    wanted: &HashMap<String, Vec<String>>,
-) -> Result<String, anyhow::Error> {
-    tracing::trace!("{wanted:#?}");
-
-    let mut parser = Parser::new();
-    parser
-        .set_language(&tree_sitter_nix::LANGUAGE.into())
-        .context("failed to load tree-sitter-nix language")?;
-
-    let mut tree = parser
-        .parse(source, None)
-        .ok_or_else(|| anyhow!("parse failed"))?;
-    let root = tree.root_node();
-    if root.has_error() {
-        bail!("input has syntax errors");
-    }
-
-    let inputs_binding = find_top_level_inputs_binding(root, source)
-        .ok_or_else(|| anyhow!("could not find top-level `inputs = {{ ... }};`"))?;
-
-    let inputs_rhs = child_by_field_name_or_last_named(inputs_binding, "value")
-        .ok_or_else(|| anyhow!("inputs binding had no RHS"))?;
-
-    if inputs_rhs.kind() != "attrset_expression" && inputs_rhs.kind() != "attr_set" {
-        bail!("`inputs` is not an attrset; found {}", inputs_rhs.kind());
-    }
-
-    // Collect edits first, apply from back to front.
-    let mut edits = Vec::<TextEdit>::new();
-
-    for (input_name, lines) in wanted {
-        if let Some(binding) = find_attrset_binding_by_name(inputs_rhs, source, input_name) {
-            let rhs = child_by_field_name_or_last_named(binding, "value")
-                .ok_or_else(|| anyhow!("binding `{input_name}` missing RHS"))?;
-
-            let already_nested = rhs.kind() == "attrset_expression" || rhs.kind() == "attr_set";
-
-            if already_nested {
-                let missing = filter_missing_insertions(rhs, source, lines);
-                if missing.is_empty() {
-                    continue;
-                }
-
-                let edit = insert_into_existing_attrset(rhs, source, &missing)?;
-                edits.push(edit);
-            }
-        } else if let Some(flat_binding) =
-            find_flat_attrpath_binding(inputs_rhs, source, input_name, "url")
-        {
-            let replacement =
-                rewrite_flat_url_binding_to_attrset(flat_binding, source, input_name, lines)?;
-
-            edits.push(TextEdit {
-                start_byte: line_start_byte_at(source, flat_binding.start_byte()),
-                old_end_byte: flat_binding.end_byte(),
-                new_text: replacement,
-            });
-        }
-    }
-
-    edits.sort_by_key(|e| e.start_byte);
-    edits.reverse();
-
-    let mut out = source.to_string();
-    for e in edits {
-        apply_edit(&mut out, &mut tree, &mut parser, e)?;
-    }
-
-    Ok(out)
-}
-
 #[derive(Debug, Clone)]
-struct TextEdit {
-    start_byte: usize,
-    old_end_byte: usize,
-    new_text: String,
+pub(crate) struct TextEdit {
+    pub start_byte: usize,
+    pub old_end_byte: usize,
+    pub new_text: String,
 }
 
-fn apply_edit(
+pub(crate) fn apply_edit(
     source: &mut String,
     tree: &mut Tree,
     parser: &mut Parser,
@@ -114,7 +40,7 @@ fn apply_edit(
     Ok(())
 }
 
-fn find_first_attrset<'a>(node: Node<'a>) -> Option<Node<'a>> {
+pub(crate) fn find_first_attrset<'a>(node: Node<'a>) -> Option<Node<'a>> {
     if node.kind() == "attrset_expression" || node.kind() == "attr_set" {
         return Some(node);
     }
@@ -128,7 +54,7 @@ fn find_first_attrset<'a>(node: Node<'a>) -> Option<Node<'a>> {
     None
 }
 
-fn bindings_in_attrset<'a>(attrset: Node<'a>) -> Vec<Node<'a>> {
+pub(crate) fn bindings_in_attrset<'a>(attrset: Node<'a>) -> Vec<Node<'a>> {
     let mut out = Vec::new();
 
     fn collect<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
@@ -147,7 +73,7 @@ fn bindings_in_attrset<'a>(attrset: Node<'a>) -> Vec<Node<'a>> {
     out
 }
 
-fn find_top_level_inputs_binding<'a>(root: Node<'a>, source: &str) -> Option<Node<'a>> {
+pub(crate) fn find_top_level_inputs_binding<'a>(root: Node<'a>, source: &str) -> Option<Node<'a>> {
     let top_attrset = find_first_attrset(root)?;
 
     for binding in bindings_in_attrset(top_attrset) {
@@ -159,7 +85,7 @@ fn find_top_level_inputs_binding<'a>(root: Node<'a>, source: &str) -> Option<Nod
     None
 }
 
-fn find_attrset_binding_by_name<'a>(
+pub(crate) fn find_attrset_binding_by_name<'a>(
     attrset: Node<'a>,
     source: &str,
     wanted: &str,
@@ -174,7 +100,7 @@ fn find_attrset_binding_by_name<'a>(
     None
 }
 
-fn find_flat_attrpath_binding<'a>(
+pub(crate) fn find_flat_attrpath_binding<'a>(
     attrset: Node<'a>,
     source: &str,
     base: &str,
@@ -190,20 +116,20 @@ fn find_flat_attrpath_binding<'a>(
     None
 }
 
-fn looks_like_binding(node: Node<'_>) -> bool {
+pub(crate) fn looks_like_binding(node: Node<'_>) -> bool {
     matches!(
         node.kind(),
         "binding" | "bind" | "attrpath_binding" | "attrpath_value" | "assignment"
     )
 }
 
-fn is_binding_named(node: Node<'_>, source: &str, wanted: &str) -> bool {
+pub(crate) fn is_binding_named(node: Node<'_>, source: &str, wanted: &str) -> bool {
     binding_name_path(node, source)
         .map(|p| p.len() == 1 && p[0] == wanted)
         .unwrap_or(false)
 }
 
-fn binding_name_path(node: Node<'_>, source: &str) -> Option<Vec<String>> {
+pub(crate) fn binding_name_path(node: Node<'_>, source: &str) -> Option<Vec<String>> {
     let text = &source[node.byte_range()];
     let lhs = text.split('=').next()?.trim();
 
@@ -214,14 +140,17 @@ fn binding_name_path(node: Node<'_>, source: &str) -> Option<Vec<String>> {
     Some(parse_attrpath_text(lhs))
 }
 
-fn child_by_field_name_or_last_named<'a>(node: Node<'a>, field: &str) -> Option<Node<'a>> {
+pub(crate) fn child_by_field_name_or_last_named<'a>(
+    node: Node<'a>,
+    field: &str,
+) -> Option<Node<'a>> {
     node.child_by_field_name(field).or_else(|| {
         let mut cursor = node.walk();
         node.named_children(&mut cursor).last()
     })
 }
 
-fn parse_attrpath_text(text: &str) -> Vec<String> {
+pub(crate) fn parse_attrpath_text(text: &str) -> Vec<String> {
     text.split('.')
         .map(str::trim)
         .map(|s| s.trim_matches('"'))
@@ -230,7 +159,7 @@ fn parse_attrpath_text(text: &str) -> Vec<String> {
         .collect()
 }
 
-fn filter_missing_insertions(
+pub(crate) fn filter_missing_insertions(
     attrset_rhs: Node<'_>,
     source: &str,
     wanted_lines: &[String],
@@ -242,7 +171,7 @@ fn filter_missing_insertions(
         .collect()
 }
 
-fn attrset_contains_assignment(attrset_rhs: Node<'_>, source: &str, line: &str) -> bool {
+pub(crate) fn attrset_contains_assignment(attrset_rhs: Node<'_>, source: &str, line: &str) -> bool {
     let lhs = line.split('=').next().map(str::trim).unwrap_or("");
     let wanted_path = parse_attrpath_text(lhs).join(".");
 
@@ -257,7 +186,7 @@ fn attrset_contains_assignment(attrset_rhs: Node<'_>, source: &str, line: &str) 
     false
 }
 
-fn insert_into_existing_attrset(
+pub(crate) fn insert_into_existing_attrset(
     attrset_rhs: Node<'_>,
     source: &str,
     lines: &[String],
@@ -291,7 +220,7 @@ fn insert_into_existing_attrset(
     })
 }
 
-fn rewrite_flat_url_binding_to_attrset(
+pub(crate) fn rewrite_flat_url_binding_to_attrset(
     flat_binding: Node<'_>,
     source: &str,
     input_name: &str,
@@ -328,7 +257,7 @@ fn rewrite_flat_url_binding_to_attrset(
     Ok(out)
 }
 
-fn detect_attrset_inner_indent(attrset_text: &str) -> Option<String> {
+pub(crate) fn detect_attrset_inner_indent(attrset_text: &str) -> Option<String> {
     for line in attrset_text.lines().skip(1) {
         let trimmed = line.trim();
         if !trimmed.is_empty() && trimmed != "}" {
@@ -338,7 +267,7 @@ fn detect_attrset_inner_indent(attrset_text: &str) -> Option<String> {
     None
 }
 
-fn line_indent_at(source: &str, byte: usize) -> String {
+pub(crate) fn line_indent_at(source: &str, byte: usize) -> String {
     let line_start = source[..byte].rfind('\n').map(|i| i + 1).unwrap_or(0);
     source[line_start..byte]
         .chars()
@@ -346,11 +275,11 @@ fn line_indent_at(source: &str, byte: usize) -> String {
         .collect()
 }
 
-fn line_start_byte_at(source: &str, byte: usize) -> usize {
+pub(crate) fn line_start_byte_at(source: &str, byte: usize) -> usize {
     source[..byte].rfind('\n').map(|i| i + 1).unwrap_or(0)
 }
 
-fn byte_to_point(source: &str, byte: usize) -> Point {
+pub(crate) fn byte_to_point(source: &str, byte: usize) -> Point {
     let mut row = 0usize;
     let mut column = 0usize;
     for b in source[..byte].bytes() {
@@ -364,7 +293,7 @@ fn byte_to_point(source: &str, byte: usize) -> Point {
     Point { row, column }
 }
 
-fn point_after_insertion(start: Point, inserted: &str) -> Point {
+pub(crate) fn point_after_insertion(start: Point, inserted: &str) -> Point {
     let mut row = start.row;
     let mut column = start.column;
 
@@ -378,70 +307,4 @@ fn point_after_insertion(start: Point, inserted: &str) -> Point {
     }
 
     Point { row, column }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::rewrite_flake_inputs;
-    use std::collections::HashMap;
-
-    #[test]
-    fn inserts_new_lines_without_extra_closing_brace_indentation() {
-        let source = r#"{
-    inputs = {
-        vicinae = {
-            url = "github:vicinaehq/vicinae";
-        };
-    };
-}"#;
-
-        let mut wanted = HashMap::new();
-        wanted.insert(
-            "vicinae".to_string(),
-            vec!["inputs.systems.follows = \"systems\";".to_string()],
-        );
-
-        let rewritten = rewrite_flake_inputs(source, &wanted).expect("rewrite should succeed");
-
-        assert_eq!(
-            rewritten,
-            r#"{
-    inputs = {
-        vicinae = {
-            url = "github:vicinaehq/vicinae";
-            inputs.systems.follows = "systems";
-        };
-    };
-}"#
-        );
-    }
-
-    #[test]
-    fn rewrites_flat_binding_without_double_indenting_it() {
-        let source = r#"{
-    inputs = {
-    yazi.url = "github:sxyazi/yazi";
-    };
-}"#;
-
-        let mut wanted = HashMap::new();
-        wanted.insert(
-            "yazi".to_string(),
-            vec!["inputs.nixpkgs.follows = \"nixpkgs\";".to_string()],
-        );
-
-        let rewritten = rewrite_flake_inputs(source, &wanted).expect("rewrite should succeed");
-
-        assert_eq!(
-            rewritten,
-            r#"{
-    inputs = {
-    yazi = {
-      url = "github:sxyazi/yazi";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    };
-}"#
-        );
-    }
 }

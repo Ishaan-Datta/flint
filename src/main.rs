@@ -1,23 +1,19 @@
-mod metadata;
-mod treesitter;
+use flint::ast::write::rewrite_flake_inputs;
+use flint::metadata::*;
 
-use metadata::*;
-use tracing::Level;
-use treesitter::*;
-
+use std::time::Duration;
 use anstyle::Style;
+use clap::builder::Styles;
 use clap::{Parser, Subcommand};
+use clap_verbosity_flag::InfoLevel;
 use std::error::Error;
 use std::process::exit;
-
-use clap::builder::Styles;
-use clap_verbosity_flag::InfoLevel;
-
 use tracing_indicatif::IndicatifLayer;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+use clap_verbosity_flag::tracing::LevelFilter;
 
 const fn make_style() -> Styles {
     Styles::plain().header(Style::new().bold()).literal(
@@ -46,53 +42,66 @@ const fn make_style() -> Styles {
 struct Cli {
     #[command(flatten)]
     pub verbosity: clap_verbosity_flag::Verbosity<InfoLevel>,
+    /// Path to the flake.nix file (ex. folder) (should be folder, not ending with .nix)
+    /// Relative or absolute, ex. "." or "~/flake_path"
+    #[arg(
+        short, long,
+        default_value_t = { 
+            ".".to_string()
+        },
+        env = "FLINT_FLAKE_PATH",
+        global = true
+    )]
+    path: String,
+    /// Timeout duration in milliseconds
+    #[arg(
+        short,
+        long,
+        default_value_t = 25_000,
+        env = "FLINT_CMD_TIMEOUT",
+        global = true
+    )]
+    timeout: u64,
     #[command(subcommand)]
     command: Commands,
 }
 
-/// flint duplicates, flint stale
+// TODO: add example values for each of the args that are the default values?
 #[derive(Debug, Subcommand)]
 enum Commands {
     #[command(arg_required_else_help = false)]
     /// Check flake inputs for updates
     Stale {
-        /// Path to the flake.nix file (ex. folder) (should be folder end, not ending with .nix)
-        #[arg(short, long, default_value_t = String::from("PWD"), env = "FLINT_PATH", global = true)]
-        path: String,
-        /// Timeout duration in milliseconds
-        #[arg(
-            short,
-            long,
-            default_value_t = 15_000,
-            env = "FLINT_CMD_TIMEOUT",
-            global = true
-        )]
-        timeout: u64,
-        #[arg(
-            short,
-            long,
-            default_value_t = 1209600,
-            env = "FLINT_UPDATE_THRESHOLD",
-            conflicts_with_all(["fix", "dry_run"])
-        )]
+        /// Threshold for classifying inputs as "stale" in seconds
+        #[arg(short, long, default_value_t = 1209600, env = "FLINT_UPDATE_THRESHOLD")]
         update_threshold: u64,
     },
+    /// Check flake inputs for redundant transitive dependencies
     Duplicates {
         /// Apply flake input consolidation
         #[arg(short, long, default_value_t = false)]
         fix: bool,
-        /// Create the linted flake file as `temp.nix` for inspection
-        #[arg(short, long, default_value_t = false, required_if_eq("fix", "true"))]
-        dry_run: bool,
+        /// Don't show an interactive prompt if the flake renaming will override existing changes
+        #[arg(short, long = "override", default_value_t = false)]
+        override_bool: bool,
+        /// Rename the original flake file to `flake.nix.bak` for restoring later
+        #[arg(short, long, default_value_t = true)]
+        backup: bool,
     },
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
-    // should try making it use a specific env var not "default RUST_LOG" (FLINT_LOG_LEVEL)
-    let filter = EnvFilter::try_from_default_env()
+    let mut filter = EnvFilter::try_from_env("FLINT_LOG_LEVEL")
         .unwrap_or_else(|_| EnvFilter::from(cli.verbosity.tracing_level_filter().to_string()));
+    let mut quiet = false;
+
+    // Work-around since clap CLI treats -q/--quiet as a level decrement instead of a silence
+    if cli.verbosity.is_present() && cli.verbosity.tracing_level_filter() <= LevelFilter::WARN {
+        filter = EnvFilter::new("off");
+        quiet = true;
+    }
 
     let indicatif_layer = IndicatifLayer::new();
     let format = fmt::layer()
@@ -111,28 +120,28 @@ fn main() -> Result<(), Box<dyn Error>> {
         .with(filter)
         .init();
 
-    let quiet = cli.verbosity.tracing_level().unwrap() >= Level::WARN;
+    let timeout = Duration::from_millis(cli.timeout);
 
-    // TODO: pass through the flake path...
-    match &cli.command {
-        Commands::Duplicates {
-            fix,
-            dry_run,
-            path,
-            timeout,
-        } => {
-            print_input_summary(*update_threshold, *timeout, quiet);
-            // do if fix, cehck the git status of the flake, dont want to modify the changes unless specified -> make arg for
+    let flake_dir_path = match get_flake_path(&cli.path.clone(), timeout) {
+        Ok(val) => {
+            tracing::info!("> Resolved flake path to: {}", val.display());
+            val
+        },
+        Err(e) => {
+            tracing::error!("Failed resolving flake path: {e}");
             exit(1);
         }
-        Commands::Stale {
-            path,
-            timeout,
-            update_threshold,
-        } => {
-            print_input_summary(*update_threshold, *timeout, quiet);
+    };
+
+    match &cli.command {
+        Commands::Duplicates { fix, override_bool, backup } => {
+            rewrite_flake_inputs(*fix, quiet, timeout, *override_bool, *backup, flake_dir_path, );
+            exit(0);
+        }
+        Commands::Stale { update_threshold } => {
+            let update_threshold = Duration::from_secs(*update_threshold);
+            print_input_summary(update_threshold, timeout, quiet, flake_dir_path);
+            exit(0);
         }
     }
-
-    Ok(())
 }
