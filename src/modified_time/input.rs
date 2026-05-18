@@ -119,6 +119,6 @@ impl Input {
         if self.remote_time.is_err() {
             return "Unknown".to_string();
         }
-        format_age(self.remote_time.clone().unwrap() - self.local_time.unwrap())
+        format_age(self.remote_time.clone().expect("Validated remote time earlier") - self.local_time.expect("Validated local time earlier"))
     }
 }

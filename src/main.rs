@@ -4,7 +4,7 @@ use flint::metadata::*;
 use std::time::Duration;
 use anstyle::Style;
 use clap::builder::Styles;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueHint};
 use clap_verbosity_flag::InfoLevel;
 use std::error::Error;
 use std::process::exit;
@@ -14,6 +14,7 @@ use tracing_subscriber::fmt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use clap_verbosity_flag::tracing::LevelFilter;
+use clap::ArgAction;
 
 const fn make_style() -> Styles {
     Styles::plain().header(Style::new().bold()).literal(
@@ -30,6 +31,7 @@ const fn make_style() -> Styles {
     long_about = None,
     styles=make_style(),
     propagate_version = false,
+    disable_help_subcommand = true,
     help_template = "
 {name} {version}
 {about-with-newline}
@@ -40,20 +42,21 @@ const fn make_style() -> Styles {
 )]
 /// Flake Lock lint
 struct Cli {
-    #[command(flatten)]
-    pub verbosity: clap_verbosity_flag::Verbosity<InfoLevel>,
-    /// Path to the flake.nix file (ex. folder) (should be folder, not ending with .nix)
-    /// Relative or absolute, ex. "." or "~/flake_path"
+    /// Path to the directory containing flake.nix
+    /// 
+    /// May be relative or absolute, ex. "." or "~/flake_path"
+    /// Must be a directory, not a .nix file.
     #[arg(
         short, long,
         default_value_t = { 
             ".".to_string()
         },
         env = "FLINT_FLAKE_PATH",
-        global = true
+        global = true,
+        value_hint = ValueHint::DirPath
     )]
     path: String,
-    /// Timeout duration in milliseconds
+    /// Command timeout duration in milliseconds
     #[arg(
         short,
         long,
@@ -62,30 +65,53 @@ struct Cli {
         global = true
     )]
     timeout: u64,
+    /// Don't show an interactive prompt if the update operation will override existing changes
+    ///
+    /// Considers "existing change" if the file has changes tracked by git that are not staged/commited
+    #[arg(short, long = "override", default_value_t = false, global = true)]
+    override_bool: bool,
     #[command(subcommand)]
     command: Commands,
+    #[command(flatten)]
+    pub verbosity: clap_verbosity_flag::Verbosity<InfoLevel>,
 }
 
-// TODO: add example values for each of the args that are the default values?
 #[derive(Debug, Subcommand)]
 enum Commands {
-    #[command(arg_required_else_help = false)]
+    #[command(arg_required_else_help = false, after_help = "\
+Examples:
+  flint stale
+  flint stale --update-threshold 604800
+  flint stale --auto-update
+  FLINT_UPDATE_THRESHOLD=604800 flint stale
+")]
     /// Check flake inputs for updates
+    #[command(display_order = 2)]
     Stale {
         /// Threshold for classifying inputs as "stale" in seconds
         #[arg(short, long, default_value_t = 1209600, env = "FLINT_UPDATE_THRESHOLD")]
         update_threshold: u64,
+        /// Auto update inputs that are classified as stale
+        #[arg(short, long, default_value_t = false)]
+        auto_update: bool,
     },
+    #[command(arg_required_else_help = false, after_help = "\
+Examples:
+  flint duplicates
+  flint duplicates --fix
+  flint duplicates --fix --override
+  flint duplicates --fix --no-backup
+")]
     /// Check flake inputs for redundant transitive dependencies
+    #[command(display_order = 1)]
     Duplicates {
         /// Apply flake input consolidation
+        /// 
+        /// Uses Treesitter AST parsing to inserting `inputs.<transitive_input>.follows = "<transitive_input>"` to de-dupe extra input instances
         #[arg(short, long, default_value_t = false)]
         fix: bool,
-        /// Don't show an interactive prompt if the flake renaming will override existing changes
-        #[arg(short, long = "override", default_value_t = false)]
-        override_bool: bool,
-        /// Rename the original flake file to `flake.nix.bak` for restoring later
-        #[arg(short, long, default_value_t = true)]
+        /// Rename the original flake file to `flake.nix.bak` as a backup
+        #[arg(short, long, default_value_t = true, action = ArgAction::Set)]
         backup: bool,
     },
 }
@@ -121,6 +147,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .init();
 
     let timeout = Duration::from_millis(cli.timeout);
+    let override_bool = cli.override_bool;
 
     let flake_dir_path = match get_flake_path(&cli.path.clone(), timeout) {
         Ok(val) => {
@@ -134,13 +161,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     match &cli.command {
-        Commands::Duplicates { fix, override_bool, backup } => {
-            rewrite_flake_inputs(*fix, quiet, timeout, *override_bool, *backup, flake_dir_path, );
+        Commands::Duplicates { fix, backup } => {
+            rewrite_flake_inputs(*fix, quiet, timeout, override_bool, *backup, flake_dir_path, );
             exit(0);
         }
-        Commands::Stale { update_threshold } => {
+        Commands::Stale { update_threshold, auto_update } => {
             let update_threshold = Duration::from_secs(*update_threshold);
-            print_input_summary(update_threshold, timeout, quiet, flake_dir_path);
+            check_flake_inputs(update_threshold, timeout, quiet, *auto_update, override_bool, flake_dir_path);
             exit(0);
         }
     }

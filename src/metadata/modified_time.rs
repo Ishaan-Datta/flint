@@ -2,6 +2,7 @@ use crate::command::run_command_with_timeout;
 use crate::errors::CommandError;
 use crate::errors::FetchError;
 use crate::metadata::get_input_urls;
+use crate::metadata::update_inputs::update_stale_flake_inputs;
 use crate::modified_time::Input;
 use crate::modified_time::InputStatus;
 use crate::modified_time::format_status_line;
@@ -21,9 +22,8 @@ use unicode_width::UnicodeWidthStr;
 use yansi::Paint;
 use yansi::Painted;
 
-// TODO: add "--no-write-lock-file after --json"
 const REMOTE_MODIFIED_TIME_CMD: &str =
-    r#"nix --refresh flake metadata {URL} --json | jq -er '.lastModified'"#;
+    r#"nix --refresh flake metadata {URL} --json --no-write-lock-file | jq -er '.lastModified'"#;
 
 const LOCAL_MODIFIED_TIME_CMD: &str = r#"nix flake metadata --json --no-write-lock-file {PATH} | jq -er '.locks.nodes | map_values(.locked.lastModified)'"#;
 
@@ -48,7 +48,7 @@ pub(crate) fn get_remote_modified_time(url: &str, timeout: Duration) -> Result<i
 /// Gets the last updated time for all flake inputs
 pub(crate) fn get_all_local_modified_times(
     timeout: Duration,
-    flake_dir_path: PathBuf,
+    flake_dir_path: &PathBuf,
 ) -> Result<HashMap<String, Option<i64>>, FetchError> {
     let cmd = LOCAL_MODIFIED_TIME_CMD.replace("{PATH}", &flake_dir_path.display().to_string());
     let output = run_command_with_timeout(cmd, timeout)?;
@@ -68,17 +68,24 @@ pub(crate) fn get_all_local_modified_times(
 }
 
 /// Print the formatted summary for input modified times
-pub fn print_input_summary(threshold: Duration, timeout: Duration, quiet: bool, path: PathBuf) {
+pub fn check_flake_inputs(
+    threshold: Duration,
+    timeout: Duration,
+    quiet: bool,
+    auto_update: bool,
+    override_bool: bool,
+    flake_dir_path: PathBuf,
+) {
     let start_time = std::time::Instant::now();
 
     tracing::info!("> Checking flake inputs for updates");
-    let current_times = get_all_local_modified_times(timeout, path).unwrap_or_else(|e| {
-        // TODO: make these had red ANSI bolded [ERROR]
-        tracing::error!("Failed to get input urls: {e}");
-        exit(1);
-    });
+    let current_times =
+        get_all_local_modified_times(timeout, &flake_dir_path).unwrap_or_else(|e| {
+            tracing::error!("Failed to get input urls: {e}");
+            exit(1);
+        });
 
-    let input_urls = get_input_urls(timeout).unwrap_or_else(|e| {
+    let input_urls = get_input_urls(timeout, &flake_dir_path).unwrap_or_else(|e| {
         tracing::error!("Failed to get input urls: {e}");
         exit(1);
     });
@@ -124,9 +131,11 @@ pub fn print_input_summary(threshold: Duration, timeout: Duration, quiet: bool, 
         + 1;
     let mut last_status = None::<InputStatus>;
 
+    tracing::info!("");
+
     print_summary_message(start_time);
 
-    for input in inputs {
+    for input in inputs.clone() {
         if last_status
             .clone()
             .is_none_or(|ls| ls.cmp(&input.status) != cmp::Ordering::Equal)
@@ -157,6 +166,17 @@ pub fn print_input_summary(threshold: Duration, timeout: Duration, quiet: bool, 
 
         tracing::info!("{line}");
     }
+
+    tracing::info!("");
+
+    if auto_update {
+        if let Err(e) =
+            update_stale_flake_inputs(inputs, timeout, quiet, override_bool, flake_dir_path)
+        {
+            tracing::error!("Failed to auto-update stale flake inputs: {e}");
+            exit(1);
+        };
+    }
 }
 
 /// Fetches the remote modified times for all flake input URLS
@@ -167,7 +187,7 @@ pub(crate) fn get_all_remote_modified_times(
     let header_span = info_span!("modified_times");
     header_span.pb_set_style(
         &ProgressStyle::with_template("{spinner} {pos}/{len} [{wide_bar:.cyan/blue}] {msg}")
-            .unwrap()
+            .expect("Progress style should be created")
             .progress_chars("#>-"),
     );
     header_span.pb_set_length(url_map.len() as u64);
@@ -187,7 +207,7 @@ pub(crate) fn get_all_remote_modified_times(
                     input = %input,
                     url = %url,
                 );
-                item_span.pb_set_style(&ProgressStyle::with_template("  {spinner} {msg}").unwrap());
+                item_span.pb_set_style(&ProgressStyle::with_template("  {spinner} {msg}").expect("Progress style should be created"));
                 let ts = item_span.in_scope(|| {
                     item_span.pb_set_message(&format!("Fetching {url}"));
                     let ts = get_remote_modified_time(url, timeout);

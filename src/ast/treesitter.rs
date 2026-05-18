@@ -12,7 +12,7 @@ pub(crate) fn apply_edit(
     source: &mut String,
     tree: &mut Tree,
     parser: &mut Parser,
-    edit: TextEdit,
+    edit: &TextEdit,
 ) -> Result<()> {
     let start_byte = edit.start_byte;
     let old_end_byte = edit.old_end_byte;

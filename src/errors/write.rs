@@ -11,7 +11,7 @@ pub enum WriteError {
     IoError(#[from] Arc<std::io::Error>),
     #[error(transparent)]
     InvalidPromptInput(#[from] Arc<inquire::InquireError>),
-    #[error("Aborting flake rename operation based on user input")]
+    #[error("Aborting flake update operation based on user input")]
     AbortUserInput,
 }
 

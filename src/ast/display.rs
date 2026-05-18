@@ -1,4 +1,5 @@
 use crate::metadata::InputReplacement;
+
 use std::collections::HashMap;
 use unicode_width::UnicodeWidthStr;
 use yansi::Paint;
@@ -35,7 +36,7 @@ pub(crate) fn print_duplicates_summary(input_deps: &HashMap<String, Vec<InputRep
                 "{input_width_entry:<input_dep_width$} -> [ {} ]",
                 replacement.old_dependency_target
             );
-            tracing::info!("{line}")
+            tracing::info!("{line}");
         }
 
         tracing::info!("");

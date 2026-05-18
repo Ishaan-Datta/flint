@@ -41,6 +41,8 @@ pub(crate) fn run_command_with_timeout(
     cmd: String,
     timeout: Duration,
 ) -> Result<CommandResult, CommandError> {
+    tracing::trace!("Running command: {cmd} with timeout: {timeout:?}");
+
     let mut child = Command::new("sh")
         .args(["-c", &cmd])
         .stdout(Stdio::piped())

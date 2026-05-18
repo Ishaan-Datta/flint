@@ -16,9 +16,9 @@ use std::time::Duration;
 use tempfile::tempdir;
 use tree_sitter::Parser;
 
-const VALIDATE_FILE_NIX_CMD: &str = r#"nix flake metadata --no-write-lock-file {PATH}'"#;
-const CHECK_GIT_REPO_CMD: &str = r#"git -C {DIR_PATH} rev-parse --show-toplevel"#;
-const CHECK_UNSTAGED_CHANGES_CMD: &str = r#"git -C {DIR_PATH} diff --quiet -- flake.nix"#;
+const VALIDATE_FILE_NIX_CMD: &str = r"nix flake metadata --no-write-lock-file {PATH}'";
+const CHECK_GIT_REPO_CMD: &str = r"git -C {DIR_PATH} rev-parse --show-toplevel";
+const CHECK_UNSTAGED_CHANGES_CMD: &str = r"git -C {DIR_PATH} diff --quiet -- {FILE_NAME}";
 
 pub fn rewrite_flake_inputs(
     fix: bool,
@@ -113,7 +113,7 @@ pub(crate) fn write_new_flake_file(
         );
     } else {
         if !override_bool {
-            check_existing_flake_modifications(&original_flake_path, quiet, timeout)?;
+            check_existing_file_modifications(&original_flake_path, &"flake.nix", quiet, timeout)?;
         }
     }
 
@@ -125,8 +125,9 @@ pub(crate) fn write_new_flake_file(
     Ok(())
 }
 
-pub(crate) fn check_existing_flake_modifications(
+pub(crate) fn check_existing_file_modifications(
     flake_path: &PathBuf,
+    file_name: &str,
     quiet: bool,
     timeout: Duration,
 ) -> Result<(), WriteError> {
@@ -142,22 +143,30 @@ pub(crate) fn check_existing_flake_modifications(
 
     if output.status.success() {
         tracing::debug!("Detected flake is in a git repository");
-        let cmd = CHECK_UNSTAGED_CHANGES_CMD.replace(
-            "{DIR_PATH}",
-            &flake_path
-                .parent()
-                .expect("Should have parent")
-                .display()
-                .to_string(),
-        );
+        let cmd = CHECK_UNSTAGED_CHANGES_CMD
+            .replace(
+                "{DIR_PATH}",
+                &flake_path
+                    .parent()
+                    .expect("Should have parent")
+                    .display()
+                    .to_string(),
+            )
+            .replace("{FILE_NAME}", file_name);
         let output = with_command_spinner!(
             "Checking if the existing flake.nix file has unstaged changes",
             cmd,
             timeout
         )?;
         match output.status.code() {
-            Some(0) => return Ok(()),
-            Some(1) => true,
+            Some(0) => {
+                tracing::debug!("Detected file does not have unstaged changes");
+                return Ok(());
+            }
+            Some(1) => {
+                tracing::debug!("Detected file has unstaged changes");
+                true
+            }
             _ => {
                 let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
                 let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
@@ -268,7 +277,7 @@ pub(crate) fn apply_flake_input_edits(
 
     let mut out = flake_file_content.to_string();
     for e in edits {
-        apply_edit(&mut out, &mut tree, &mut parser, e)
+        apply_edit(&mut out, &mut tree, &mut parser, &e)
             .map_err(|_| TreesitterParseError::IncrementalReparseFailed)?;
     }
 
