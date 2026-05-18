@@ -6,7 +6,7 @@ use textwrap::wrap;
 use unicode_width::UnicodeWidthStr;
 use yansi::Paint;
 
-pub(crate) fn format_age(secs: i64) -> String {
+pub fn format_age(secs: i64) -> String {
     let mut s = Vec::new();
     let mut remaining = secs.max(0);
 
@@ -22,7 +22,7 @@ pub(crate) fn format_age(secs: i64) -> String {
     s.join(", ")
 }
 
-pub(crate) fn print_summary_message(start: Instant) {
+pub fn print_summary_message(start: Instant) {
     let now = Local::now();
     let t24 = now.format("%H:%M:%S").to_string();
     let duration = start.elapsed().as_secs();
@@ -32,7 +32,7 @@ pub(crate) fn print_summary_message(start: Instant) {
     tracing::info!("{summary}\n");
 }
 
-pub(crate) fn paint_info(status: &InputStatus, s: &str) -> String {
+pub fn paint_info(status: &InputStatus, s: &str) -> String {
     match status {
         InputStatus::Fresh => s.to_string(),
         InputStatus::Stale => s.yellow().to_string(),
@@ -40,7 +40,7 @@ pub(crate) fn paint_info(status: &InputStatus, s: &str) -> String {
     }
 }
 
-pub(crate) fn format_status_line(
+pub fn format_status_line(
     status: &InputStatus,
     input_name: &str,
     name_width: usize,

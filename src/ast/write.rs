@@ -1,5 +1,5 @@
 use crate::ast::display::print_duplicates_summary;
-use crate::ast::treesitter::*;
+use crate::ast::treesitter::{find_top_level_inputs_binding, child_by_field_name_or_last_named, TextEdit, find_attrset_binding_by_name, filter_missing_insertions, insert_into_existing_attrset, find_flat_attrpath_binding, rewrite_flat_url_binding_to_attrset, line_start_byte_at, apply_edit};
 use crate::command::run_command_with_timeout;
 use crate::command::with_command_spinner;
 use crate::errors::CommandError;
@@ -10,11 +10,11 @@ use crate::modified_time::print_summary_message;
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
 use std::process::exit;
 use std::time::Duration;
 use tempfile::tempdir;
 use tree_sitter::Parser;
+use std::path::Path;
 
 const VALIDATE_FILE_NIX_CMD: &str = r"nix flake metadata --no-write-lock-file {PATH}'";
 const CHECK_GIT_REPO_CMD: &str = r"git -C {DIR_PATH} rev-parse --show-toplevel";
@@ -26,17 +26,17 @@ pub fn rewrite_flake_inputs(
     timeout: Duration,
     override_bool: bool,
     backup: bool,
-    flake_dir_path: PathBuf,
+    flake_dir_path: &Path,
 ) {
     let start_time = std::time::Instant::now();
 
     let flake_file_path = &flake_dir_path.join("flake.nix");
-    let flake_content = fs::read_to_string(&flake_file_path).unwrap_or_else(|e| {
+    let flake_content = fs::read_to_string(flake_file_path).unwrap_or_else(|e| {
         tracing::error!("Failed to read the flake: {flake_file_path:?}: {e}");
         exit(1);
     });
 
-    let input_deps = get_input_deps(&flake_dir_path, timeout).unwrap_or_else(|e| {
+    let input_deps = get_input_deps(flake_dir_path, timeout).unwrap_or_else(|e| {
         tracing::error!("Failed to parse input dependencies of the flake: {e}");
         exit(1);
     });
@@ -77,7 +77,7 @@ pub fn rewrite_flake_inputs(
 }
 
 pub(crate) fn write_new_flake_file(
-    new_flake_dir_path: PathBuf,
+    new_flake_dir_path: &Path,
     new_flake_content: &str,
     override_bool: bool,
     quiet: bool,
@@ -89,7 +89,7 @@ pub(crate) fn write_new_flake_file(
     std::fs::write(&temp_flake_path, new_flake_content)?;
 
     let cmd = VALIDATE_FILE_NIX_CMD.replace("{PATH}", &temp_flake_path.display().to_string());
-    let output = with_command_spinner!("Validating the flake file edits", cmd, timeout)?;
+    let output = with_command_spinner!("Validating the flake file edits", &cmd, timeout)?;
 
     if !output.status.success() {
         let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
@@ -111,10 +111,10 @@ pub(crate) fn write_new_flake_file(
             "Made backup of original flake at: {}",
             old_flake_backup_path.display()
         );
-    } else {
-        if !override_bool {
-            check_existing_file_modifications(&original_flake_path, &"flake.nix", quiet, timeout)?;
-        }
+    } 
+
+    if !override_bool {
+        check_existing_file_modifications(&original_flake_path, "flake.nix", quiet, timeout)?;
     }
 
     fs::rename(temp_flake_path, &original_flake_path)?;
@@ -126,7 +126,7 @@ pub(crate) fn write_new_flake_file(
 }
 
 pub(crate) fn check_existing_file_modifications(
-    flake_path: &PathBuf,
+    flake_path: &Path,
     file_name: &str,
     quiet: bool,
     timeout: Duration,
@@ -139,7 +139,7 @@ pub(crate) fn check_existing_file_modifications(
             .display()
             .to_string(),
     );
-    let output = run_command_with_timeout(cmd, timeout)?;
+    let output = run_command_with_timeout(&cmd, timeout)?;
 
     if output.status.success() {
         tracing::debug!("Detected flake is in a git repository");
@@ -155,7 +155,7 @@ pub(crate) fn check_existing_file_modifications(
             .replace("{FILE_NAME}", file_name);
         let output = with_command_spinner!(
             "Checking if the existing flake.nix file has unstaged changes",
-            cmd,
+            &cmd,
             timeout
         )?;
         match output.status.code() {
@@ -194,7 +194,7 @@ pub(crate) fn check_existing_file_modifications(
         }
 
         return Ok(());
-    };
+    }
 
     tracing::debug!("Did not detect flake is in a git repository");
     Ok(())

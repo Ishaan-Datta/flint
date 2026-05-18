@@ -40,7 +40,7 @@ pub(crate) fn apply_edit(
     Ok(())
 }
 
-pub(crate) fn find_first_attrset<'a>(node: Node<'a>) -> Option<Node<'a>> {
+pub(crate) fn find_first_attrset(node: Node<'_>) -> Option<Node<'_>> {
     if node.kind() == "attrset_expression" || node.kind() == "attr_set" {
         return Some(node);
     }
@@ -54,35 +54,27 @@ pub(crate) fn find_first_attrset<'a>(node: Node<'a>) -> Option<Node<'a>> {
     None
 }
 
-pub(crate) fn bindings_in_attrset<'a>(attrset: Node<'a>) -> Vec<Node<'a>> {
+pub(crate) fn bindings_in_attrset(attrset: Node<'_>) -> Vec<Node<'_>> {
     let mut out = Vec::new();
-
-    fn collect<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
-        let mut cursor = node.walk();
-
-        for child in node.named_children(&mut cursor) {
-            if child.kind() == "binding_set" {
-                collect(child, out);
-            } else if looks_like_binding(child) {
-                out.push(child);
-            }
-        }
-    }
-
     collect(attrset, &mut out);
     out
 }
 
-pub(crate) fn find_top_level_inputs_binding<'a>(root: Node<'a>, source: &str) -> Option<Node<'a>> {
-    let top_attrset = find_first_attrset(root)?;
+fn collect<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
+    let mut cursor = node.walk();
 
-    for binding in bindings_in_attrset(top_attrset) {
-        if is_binding_named(binding, source, "inputs") {
-            return Some(binding);
+    for child in node.named_children(&mut cursor) {
+        if child.kind() == "binding_set" {
+            collect(child, out);
+        } else if looks_like_binding(child) {
+            out.push(child);
         }
     }
+}
 
-    None
+pub(crate) fn find_top_level_inputs_binding<'a>(root: Node<'a>, source: &str) -> Option<Node<'a>> {
+    let top_attrset = find_first_attrset(root)?;
+    bindings_in_attrset(top_attrset).into_iter().find(|&binding| is_binding_named(binding, source, "inputs"))
 }
 
 pub(crate) fn find_attrset_binding_by_name<'a>(
@@ -125,8 +117,7 @@ pub(crate) fn looks_like_binding(node: Node<'_>) -> bool {
 
 pub(crate) fn is_binding_named(node: Node<'_>, source: &str, wanted: &str) -> bool {
     binding_name_path(node, source)
-        .map(|p| p.len() == 1 && p[0] == wanted)
-        .unwrap_or(false)
+        .is_some_and(|p| p.len() == 1 && p[0] == wanted)
 }
 
 pub(crate) fn binding_name_path(node: Node<'_>, source: &str) -> Option<Vec<String>> {
@@ -172,14 +163,12 @@ pub(crate) fn filter_missing_insertions(
 }
 
 pub(crate) fn attrset_contains_assignment(attrset_rhs: Node<'_>, source: &str, line: &str) -> bool {
-    let lhs = line.split('=').next().map(str::trim).unwrap_or("");
+    let lhs = line.split('=').next().map_or("", str::trim);
     let wanted_path = parse_attrpath_text(lhs).join(".");
 
     for binding in bindings_in_attrset(attrset_rhs) {
-        if let Some(path) = binding_name_path(binding, source) {
-            if path.join(".") == wanted_path {
-                return true;
-            }
+        if let Some(path) = binding_name_path(binding, source) && path.join(".") == wanted_path {
+            return true;
         }
     }
 
@@ -197,11 +186,10 @@ pub(crate) fn insert_into_existing_attrset(
         .ok_or_else(|| anyhow!("attrset text had no closing brace"))?;
     let close_line_start_rel = text[..close_rel]
         .rfind('\n')
-        .map(|i| i + 1)
-        .unwrap_or(close_rel);
+        .map_or(close_rel, |i| i + 1);
     let close_abs = attrset_rhs.start_byte() + close_line_start_rel;
 
-    let base_indent = detect_attrset_inner_indent(text).unwrap_or("      ".to_string());
+    let base_indent = detect_attrset_inner_indent(text).unwrap_or_else(|| "      ".to_string());
     let mut inserted = String::new();
 
     for line in lines {
@@ -268,7 +256,7 @@ pub(crate) fn detect_attrset_inner_indent(attrset_text: &str) -> Option<String> 
 }
 
 pub(crate) fn line_indent_at(source: &str, byte: usize) -> String {
-    let line_start = source[..byte].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let line_start = source[..byte].rfind('\n').map_or(0, |i| i + 1);
     source[line_start..byte]
         .chars()
         .take_while(|c| c.is_whitespace())
@@ -276,7 +264,7 @@ pub(crate) fn line_indent_at(source: &str, byte: usize) -> String {
 }
 
 pub(crate) fn line_start_byte_at(source: &str, byte: usize) -> usize {
-    source[..byte].rfind('\n').map(|i| i + 1).unwrap_or(0)
+    source[..byte].rfind('\n').map_or(0, |i| i + 1)
 }
 
 pub(crate) fn byte_to_point(source: &str, byte: usize) -> Point {

@@ -38,37 +38,34 @@ impl CommandResult {
 }
 
 pub(crate) fn run_command_with_timeout(
-    cmd: String,
+    cmd: &str,
     timeout: Duration,
 ) -> Result<CommandResult, CommandError> {
     tracing::trace!("Running command: {cmd} with timeout: {timeout:?}");
 
     let mut child = Command::new("sh")
-        .args(["-c", &cmd])
+        .args(["-c", cmd])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .or_else(|_| anyhow::bail!("Command: {cmd} failed to start"))?;
 
-    let stdout = child.stdout.take().ok_or(anyhow!(
+    let stdout = child.stdout.take().ok_or_else(|| anyhow!(
         "Could not make stdout handle for command sub-process"
     ))?;
-    let stderr = child.stderr.take().ok_or(anyhow!(
+    let stderr = child.stderr.take().ok_or_else(|| anyhow!(
         "Could not make stderr handle for command sub-process"
     ))?;
 
-    match child
-        .wait_timeout(timeout)
-        .or_else(|_| anyhow::bail!("Could not setup child timeout for command: {cmd}"))?
-    {
-        Some(status) => Ok(CommandResult::new(stdout, stderr, status)?),
-        None => {
+    if let Some(status) = child.wait_timeout(timeout)
+        .or_else(|_| anyhow::bail!("Could not setup child timeout for command: {cmd}"))? {
+            Ok(CommandResult::new(stdout, stderr, status)?)
+        } else {
             child
                 .kill()
                 .or_else(|_| anyhow::bail!("Command: {cmd} could not be killed after timeout"))?;
             Err(CommandError::CommandTimeout(timeout.as_millis()))
         }
-    }
 }
 
 macro_rules! with_command_spinner {

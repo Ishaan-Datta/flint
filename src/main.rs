@@ -1,5 +1,5 @@
 use flint::ast::write::rewrite_flake_inputs;
-use flint::metadata::*;
+use flint::metadata::{get_flake_path, check_flake_inputs};
 
 use std::time::Duration;
 use anstyle::Style;
@@ -44,7 +44,7 @@ const fn make_style() -> Styles {
 struct Cli {
     /// Path to the directory containing flake.nix
     /// 
-    /// May be relative or absolute, ex. "." or "~/flake_path"
+    /// May be relative or absolute, ex. "." or ``~/flake_path``
     /// Must be a directory, not a .nix file.
     #[arg(
         short, long,
@@ -121,13 +121,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut filter = EnvFilter::try_from_env("FLINT_LOG_LEVEL")
         .unwrap_or_else(|_| EnvFilter::from(cli.verbosity.tracing_level_filter().to_string()));
-    let mut quiet = false;
 
     // Work-around since clap CLI treats -q/--quiet as a level decrement instead of a silence
-    if cli.verbosity.is_present() && cli.verbosity.tracing_level_filter() <= LevelFilter::WARN {
-        filter = EnvFilter::new("off");
-        quiet = true;
-    }
+    let quiet = if cli.verbosity.is_present() && cli.verbosity.tracing_level_filter() <= LevelFilter::WARN { 
+        filter = EnvFilter::new("off"); true 
+    } else { 
+        false 
+    };
 
     let indicatif_layer = IndicatifLayer::new();
     let format = fmt::layer()
@@ -149,7 +149,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let timeout = Duration::from_millis(cli.timeout);
     let override_bool = cli.override_bool;
 
-    let flake_dir_path = match get_flake_path(&cli.path.clone(), timeout) {
+    let flake_dir_path = match get_flake_path(&cli.path, timeout) {
         Ok(val) => {
             tracing::info!("> Resolved flake path to: {}", val.display());
             val
@@ -162,12 +162,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     match &cli.command {
         Commands::Duplicates { fix, backup } => {
-            rewrite_flake_inputs(*fix, quiet, timeout, override_bool, *backup, flake_dir_path, );
+            rewrite_flake_inputs(*fix, quiet, timeout, override_bool, *backup, &flake_dir_path, );
             exit(0);
         }
         Commands::Stale { update_threshold, auto_update } => {
             let update_threshold = Duration::from_secs(*update_threshold);
-            check_flake_inputs(update_threshold, timeout, quiet, *auto_update, override_bool, flake_dir_path);
+            check_flake_inputs(update_threshold, timeout, quiet, *auto_update, override_bool, &flake_dir_path);
             exit(0);
         }
     }

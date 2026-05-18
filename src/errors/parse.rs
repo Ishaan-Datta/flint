@@ -30,6 +30,6 @@ pub enum FetchError {
 
 impl From<serde_json::Error> for FetchError {
     fn from(err: serde_json::Error) -> Self {
-        FetchError::InputMapParse(Arc::new(err))
+        Self::InputMapParse(Arc::new(err))
     }
 }

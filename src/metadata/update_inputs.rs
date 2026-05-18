@@ -6,19 +6,19 @@ use crate::modified_time::Input;
 use crate::modified_time::InputStatus;
 use crate::modified_time::print_summary_message;
 
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::exit;
 use std::time::Duration;
 
-const UPDATE_INPUTS_CMD: &str = r#"nix flake update {INPUTS}"#;
+const UPDATE_INPUTS_CMD: &str = r"nix flake update {INPUTS}";
 
 /// Auto updates all stale inputs with `nix flake update`
 pub(crate) fn update_stale_flake_inputs(
-    inputs: Vec<Input>,
+    inputs: &[Input],
     timeout: Duration,
     quiet: bool,
     override_bool: bool,
-    flake_dir_path: PathBuf,
+    flake_dir_path: &Path,
 ) -> Result<(), WriteError> {
     let stale_inputs = inputs
         .iter()
@@ -38,11 +38,11 @@ pub(crate) fn update_stale_flake_inputs(
 
     let flake_lock_file = flake_dir_path.join("flake.lock");
     if flake_lock_file.exists() && flake_lock_file.is_file() && !override_bool {
-        check_existing_file_modifications(&flake_lock_file, &"flake.lock", quiet, timeout)?;
+        check_existing_file_modifications(&flake_lock_file, "flake.lock", quiet, timeout)?;
     }
 
     let cmd = UPDATE_INPUTS_CMD.replace("{INPUTS}", &stale_inputs.join(" "));
-    let output = with_command_spinner!("Updating stale flake inputs", cmd, timeout)?;
+    let output = with_command_spinner!("Updating stale flake inputs", &cmd, timeout)?;
 
     print_summary_message(start_time);
 

@@ -13,7 +13,6 @@ use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use std::cmp;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::process::exit;
 use std::time::Duration;
 use tracing::info_span;
@@ -21,16 +20,17 @@ use tracing_indicatif::span_ext::IndicatifSpanExt;
 use unicode_width::UnicodeWidthStr;
 use yansi::Paint;
 use yansi::Painted;
+use std::path::Path;
 
 const REMOTE_MODIFIED_TIME_CMD: &str =
-    r#"nix --refresh flake metadata {URL} --json --no-write-lock-file | jq -er '.lastModified'"#;
+    r"nix --refresh flake metadata {URL} --json --no-write-lock-file | jq -er '.lastModified'";
 
-const LOCAL_MODIFIED_TIME_CMD: &str = r#"nix flake metadata --json --no-write-lock-file {PATH} | jq -er '.locks.nodes | map_values(.locked.lastModified)'"#;
+const LOCAL_MODIFIED_TIME_CMD: &str = r"nix flake metadata --json --no-write-lock-file {PATH} | jq -er '.locks.nodes | map_values(.locked.lastModified)'";
 
 /// Fetches new modified time for a single flake url
 pub(crate) fn get_remote_modified_time(url: &str, timeout: Duration) -> Result<i64, FetchError> {
     let cmd = REMOTE_MODIFIED_TIME_CMD.replace("{URL}", url);
-    let output = run_command_with_timeout(cmd, timeout)?;
+    let output = run_command_with_timeout(&cmd, timeout)?;
 
     if output.status.success() {
         let s = String::from_utf8(output.stdout)?;
@@ -48,10 +48,10 @@ pub(crate) fn get_remote_modified_time(url: &str, timeout: Duration) -> Result<i
 /// Gets the last updated time for all flake inputs
 pub(crate) fn get_all_local_modified_times(
     timeout: Duration,
-    flake_dir_path: &PathBuf,
+    flake_dir_path: &Path,
 ) -> Result<HashMap<String, Option<i64>>, FetchError> {
     let cmd = LOCAL_MODIFIED_TIME_CMD.replace("{PATH}", &flake_dir_path.display().to_string());
-    let output = run_command_with_timeout(cmd, timeout)?;
+    let output = run_command_with_timeout(&cmd, timeout)?;
 
     if output.status.success() {
         let mod_map: HashMap<String, Option<i64>> = serde_json::from_slice(&output.stdout)?;
@@ -74,23 +74,23 @@ pub fn check_flake_inputs(
     quiet: bool,
     auto_update: bool,
     override_bool: bool,
-    flake_dir_path: PathBuf,
+    flake_dir_path: &Path,
 ) {
     let start_time = std::time::Instant::now();
 
     tracing::info!("> Checking flake inputs for updates");
     let current_times =
-        get_all_local_modified_times(timeout, &flake_dir_path).unwrap_or_else(|e| {
+        get_all_local_modified_times(timeout, flake_dir_path).unwrap_or_else(|e| {
             tracing::error!("Failed to get input urls: {e}");
             exit(1);
         });
 
-    let input_urls = get_input_urls(timeout, &flake_dir_path).unwrap_or_else(|e| {
+    let input_urls = get_input_urls(timeout, flake_dir_path).unwrap_or_else(|e| {
         tracing::error!("Failed to get input urls: {e}");
         exit(1);
     });
 
-    let fetched_times = get_all_remote_modified_times(input_urls, timeout);
+    let fetched_times = get_all_remote_modified_times(&input_urls, timeout);
 
     if current_times.len() != fetched_times.len() {
         tracing::debug!(
@@ -101,16 +101,14 @@ pub fn check_flake_inputs(
     }
 
     let mut inputs = Vec::<Input>::new();
-    for (input, new_time) in fetched_times.iter() {
+    for (input, new_time) in &fetched_times {
         let mut input_struct =
-            Input::new(input, current_times.get(input).unwrap_or(&None), new_time);
+            Input::new(input, current_times.get(input).unwrap_or(&None).as_ref(), new_time);
         input_struct.get_status(threshold);
 
         if quiet {
             if input_struct.clone().status == InputStatus::Stale {
                 exit(1);
-            } else {
-                continue;
             }
         } else {
             inputs.push(input_struct);
@@ -152,7 +150,7 @@ pub fn check_flake_inputs(
             .bold();
 
             tracing::info!("{header}");
-            last_status = Some(input.clone().status)
+            last_status = Some(input.clone().status);
         }
 
         let input_name = input.clone().name;
@@ -169,19 +167,15 @@ pub fn check_flake_inputs(
 
     tracing::info!("");
 
-    if auto_update {
-        if let Err(e) =
-            update_stale_flake_inputs(inputs, timeout, quiet, override_bool, flake_dir_path)
-        {
-            tracing::error!("Failed to auto-update stale flake inputs: {e}");
-            exit(1);
-        };
+    if auto_update && let Err(e) = update_stale_flake_inputs(&inputs, timeout, quiet, override_bool, flake_dir_path) {
+        tracing::error!("Failed to auto-update stale flake inputs: {e}");
+        exit(1);
     }
 }
 
 /// Fetches the remote modified times for all flake input URLS
 pub(crate) fn get_all_remote_modified_times(
-    url_map: HashMap<String, String>,
+    url_map: &HashMap<String, String>,
     timeout: Duration,
 ) -> HashMap<String, Result<i64, FetchError>> {
     let header_span = info_span!("modified_times");

@@ -8,7 +8,7 @@ use yansi::Paint;
 use yansi::Painted;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) enum InputStatus {
+pub enum InputStatus {
     Fresh,
     Stale,
     Error(StatusError),
@@ -41,7 +41,7 @@ impl cmp::Ord for InputStatus {
 }
 
 impl InputStatus {
-    pub(crate) fn plain_char(&self) -> &'static str {
+    pub(crate) const fn plain_char(&self) -> &'static str {
         match self {
             Self::Fresh => "✔",
             Self::Stale => "!",
@@ -59,7 +59,7 @@ impl InputStatus {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Input {
+pub struct Input {
     pub name: String,
     pub status: InputStatus,
     local_time: Option<i64>,
@@ -69,13 +69,13 @@ pub(crate) struct Input {
 impl Input {
     pub(crate) fn new(
         input_string: &str,
-        local_time: &Option<i64>,
+        local_time: Option<&i64>,
         remote_time: &Result<i64, FetchError>,
     ) -> Self {
-        Input {
+        Self {
             name: input_string.to_string(),
             status: InputStatus::Fresh,
-            local_time: *local_time,
+            local_time: local_time.copied(),
             remote_time: remote_time.clone(),
         }
     }
@@ -84,17 +84,17 @@ impl Input {
         match &self.remote_time {
             Err(e) => {
                 tracing::debug!("Failed to fetch input {}: {e}", self.name);
-                self.status = InputStatus::Error(StatusError::NotFetched(e.to_string()))
+                self.status = InputStatus::Error(StatusError::NotFetched(e.to_string()));
             }
             Ok(remote_time) => match self.local_time {
                 None => self.status = InputStatus::Stale,
                 Some(local_time) => {
                     if local_time > *remote_time {
-                        self.status = InputStatus::Error(StatusError::Less)
-                    } else if remote_time - local_time > threshold.as_secs() as i64 {
-                        self.status = InputStatus::Stale
+                        self.status = InputStatus::Error(StatusError::Less);
+                    } else if remote_time - local_time > threshold.as_secs().cast_signed() {
+                        self.status = InputStatus::Stale;
                     } else {
-                        self.status = InputStatus::Fresh
+                        self.status = InputStatus::Fresh;
                     }
                 }
             },

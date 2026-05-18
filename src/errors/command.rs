@@ -25,6 +25,6 @@ fn format_output(label: &str, value: &str) -> String {
 
 impl From<anyhow::Error> for CommandError {
     fn from(err: anyhow::Error) -> Self {
-        CommandError::Other(Arc::new(err))
+        Self::Other(Arc::new(err))
     }
 }

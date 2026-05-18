@@ -17,12 +17,12 @@ pub enum WriteError {
 
 impl From<std::io::Error> for WriteError {
     fn from(err: std::io::Error) -> Self {
-        WriteError::IoError(Arc::new(err))
+        Self::IoError(Arc::new(err))
     }
 }
 
 impl From<inquire::InquireError> for WriteError {
     fn from(err: inquire::InquireError) -> Self {
-        WriteError::InvalidPromptInput(Arc::new(err))
+        Self::InvalidPromptInput(Arc::new(err))
     }
 }

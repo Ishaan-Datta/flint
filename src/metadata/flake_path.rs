@@ -18,7 +18,7 @@ pub fn get_flake_path(input_path: &str, timeout: Duration) -> Result<PathBuf, Fe
     let cmd = PATH_CMD.replace("{PATH}", input_path);
     let output = with_command_spinner!(
         "Resolving the flake path with `nix flake metadata`",
-        cmd,
+        &cmd,
         timeout
     )?;
 
@@ -28,7 +28,6 @@ pub fn get_flake_path(input_path: &str, timeout: Duration) -> Result<PathBuf, Fe
     if output.status.success() {
         if !stderr_str.trim().is_empty() {
             tracing::warn!("{stderr_str}");
-            // TODO: should return error here
         }
 
         let flake_path = PathBuf::from(stdout_str);
