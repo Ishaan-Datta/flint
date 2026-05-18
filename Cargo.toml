@@ -1,9 +1,16 @@
-[package]
-name = "flint"
+[workspace]
+members = ["xtask", "flint"]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.94.1"
+license = "GPL-3.0"
 
-[dependencies]
+[workspace.dependencies]
+flint = { path = "flint" }
+
 anstyle = "1.0.14"
 anyhow = "1.0.102"
 chrono = "0.4.44"
@@ -36,8 +43,12 @@ tree-sitter-nix = "0.3.0"
 unicode-width = "0.2.2"
 wait-timeout = "0.2.1"
 yansi = "1.0.1"
+clap_complete = "4.6.5"
+clap_complete_nushell = "4.6.0"
+clap_mangen = "0.3.0"
+roff = "1.1.1"
 
-[lints.clippy]
+[workspace.lints.clippy]
 panic = "deny"
 unwrap_used = "deny"
 expect_used = "allow"

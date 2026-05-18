@@ -1,12 +1,11 @@
-use flint::ast::write::rewrite_flake_inputs;
-use flint::metadata::{get_flake_path, check_flake_inputs};
+use crate::ast::write::rewrite_flake_inputs;
+use crate::metadata::{get_flake_path, check_flake_inputs};
 
 use std::time::Duration;
 use anstyle::Style;
 use clap::builder::Styles;
 use clap::{Parser, Subcommand, ValueHint};
 use clap_verbosity_flag::InfoLevel;
-use std::error::Error;
 use std::process::exit;
 use tracing_indicatif::IndicatifLayer;
 use tracing_subscriber::EnvFilter;
@@ -15,6 +14,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use clap_verbosity_flag::tracing::LevelFilter;
 use clap::ArgAction;
+use color_eyre::Result;
 
 const fn make_style() -> Styles {
     Styles::plain().header(Style::new().bold()).literal(
@@ -41,7 +41,7 @@ const fn make_style() -> Styles {
 "
 )]
 /// Flake Lock lint
-struct Cli {
+pub struct Cli {
     /// Path to the directory containing flake.nix
     /// 
     /// May be relative or absolute, ex. "." or ``~/flake_path``
@@ -116,7 +116,7 @@ Examples:
     },
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+pub fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let mut filter = EnvFilter::try_from_env("FLINT_LOG_LEVEL")

@@ -1,0 +1,43 @@
+[package]
+name = "flint"
+version.workspace = true
+publish = false
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+inquire = { workspace = true, default-features = false, features = ["console"] }
+anstyle.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+clap = { workspace = true, default-features = true, features = [
+    "derive",
+    "env",
+] }
+clap-verbosity-flag = { workspace = true, default-features = false, features = [
+    "tracing",
+] }
+indicatif = { workspace = true, features = ["rayon"] }
+rayon.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tempfile.workspace = true
+textwrap = { workspace = true, features = ["terminal_size"] }
+thiserror.workspace = true
+tracing.workspace = true
+tracing-indicatif.workspace = true
+tracing-subscriber = { workspace = true, default-features = true, features = [
+    "ansi",
+    "fmt",
+    "env-filter",
+] }
+tree-sitter.workspace = true
+tree-sitter-nix.workspace = true
+unicode-width.workspace = true
+wait-timeout.workspace = true
+yansi.workspace = true
+color-eyre = "0.6.5"
