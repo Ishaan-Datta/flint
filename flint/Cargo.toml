@@ -1,43 +1,43 @@
 [package]
-name = "flint"
-version.workspace = true
-publish = false
-edition.workspace = true
-license.workspace = true
+name                   = "flint"
+version.workspace      = true
+publish                = false
+repository             = "https://github.com/Ishaan-Datta/flint"
+description            = "Flake Lock Lint"
+readme                 = "README.md"
+keywords               = [ "nix", "nixos", "flake", "lint", "CLI" ]
+edition.workspace      = true
+license.workspace      = true
 rust-version.workspace = true
+default-run            = "flint"
 
 [lints]
 workspace = true
 
 [dependencies]
-inquire = { workspace = true, default-features = false, features = ["console"] }
 anstyle.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
-clap = { workspace = true, default-features = true, features = [
-    "derive",
-    "env",
-] }
-clap-verbosity-flag = { workspace = true, default-features = false, features = [
-    "tracing",
-] }
-indicatif = { workspace = true, features = ["rayon"] }
+clap = { default-features = true, features = [ "derive", "env" ], workspace = true }
+clap-verbosity-flag = { default-features = false, features = [ "tracing" ], workspace = true }
+color-eyre = "0.6.5"
+indicatif = { features = [ "rayon" ], workspace = true }
+inquire = { default-features = false, features = [ "console" ], workspace = true }
 rayon.workspace = true
-serde = { workspace = true, features = ["derive"] }
+serde = { features = [ "derive" ], workspace = true }
 serde_json.workspace = true
 tempfile.workspace = true
-textwrap = { workspace = true, features = ["terminal_size"] }
+textwrap = { features = [ "terminal_size" ], workspace = true }
 thiserror.workspace = true
 tracing.workspace = true
 tracing-indicatif.workspace = true
-tracing-subscriber = { workspace = true, default-features = true, features = [
-    "ansi",
-    "fmt",
-    "env-filter",
-] }
+tracing-subscriber = { default-features = true, features = [
+  "ansi",
+  "fmt",
+  "env-filter",
+], workspace = true }
 tree-sitter.workspace = true
 tree-sitter-nix.workspace = true
 unicode-width.workspace = true
 wait-timeout.workspace = true
 yansi.workspace = true
-color-eyre = "0.6.5"

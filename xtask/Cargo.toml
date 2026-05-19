@@ -1,13 +1,13 @@
 [package]
-name = "xtask"
+name              = "xtask"
 version.workspace = true
 edition.workspace = true
-publish = false
+publish           = false
 
 [dependencies]
-clap.workspace = true
-clap_complete.workspace = true
+clap.workspace                  = true
+clap_complete.workspace         = true
 clap_complete_nushell.workspace = true
-clap_mangen.workspace = true
-roff.workspace = true
-flint.workspace = true
+clap_mangen.workspace           = true
+flint.workspace                 = true
+roff.workspace                  = true

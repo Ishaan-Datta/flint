@@ -36,7 +36,8 @@ pub fn generate(out_dir: &str) -> Result<(), String> {
     ("0", "Successful program execution."),
     (
       "1",
-      "Command failure or detected issues in quiet mode (stale or duplicate inputs).",
+      "Command failure or detected issues in quiet mode (stale or duplicate \
+       inputs).",
     ),
     ("101", "The program panicked."),
   ];
@@ -108,10 +109,7 @@ pub fn generate(out_dir: &str) -> Result<(), String> {
       "Use a custom stale threshold (7 days)",
       "flint stale --update-threshold 604800",
     ),
-    (
-      "Auto-update stale inputs",
-      "flint stale --auto-update",
-    ),
+    ("Auto-update stale inputs", "flint stale --auto-update"),
     (
       "Check a specific flake directory",
       "flint --path ~/projects/myflake stale",
@@ -121,10 +119,7 @@ pub fn generate(out_dir: &str) -> Result<(), String> {
       "FLINT_FLAKE_PATH=~/projects/myflake flint stale",
     ),
     ("Detect duplicate inputs", "flint duplicates"),
-    (
-      "Fix duplicates and keep a backup",
-      "flint duplicates --fix",
-    ),
+    ("Fix duplicates and keep a backup", "flint duplicates --fix"),
     (
       "Fix duplicates without backup and override",
       "flint duplicates --fix --no-backup --override",
