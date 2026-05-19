@@ -6,6 +6,15 @@ use textwrap::wrap;
 use unicode_width::UnicodeWidthStr;
 use yansi::Paint;
 
+/// Format an age in seconds as "ddd d, hh h, mm m", clamping negative values to zero.
+///
+/// # Arguments
+///
+/// * `secs` - The age in seconds to format.
+///
+/// # Returns
+///
+/// Returns the formatted age string using days, hours, and minutes.
 pub fn format_age(secs: i64) -> String {
     let mut s = Vec::new();
     let mut remaining = secs.max(0);
@@ -22,6 +31,11 @@ pub fn format_age(secs: i64) -> String {
     s.join(", ")
 }
 
+/// Log a summary message with the local finish time and elapsed duration.
+///
+/// # Arguments
+///
+/// * `start` - The instant marking the start of the operation.
 pub fn print_summary_message(start: Instant) {
     let now = Local::now();
     let t24 = now.format("%H:%M:%S").to_string();
@@ -32,6 +46,16 @@ pub fn print_summary_message(start: Instant) {
     tracing::info!("{summary}\n");
 }
 
+/// Paint informational text based on the input status.
+///
+/// # Arguments
+///
+/// * `status` - The status used to select the color.
+/// * `s` - The informational text to paint.
+///
+/// # Returns
+///
+/// Returns the painted string for the status.
 pub fn paint_info(status: &InputStatus, s: &str) -> String {
     match status {
         InputStatus::Fresh => s.to_string(),
@@ -40,6 +64,18 @@ pub fn paint_info(status: &InputStatus, s: &str) -> String {
     }
 }
 
+/// Build a formatted status line with wrapping and alignment.
+///
+/// # Arguments
+///
+/// * `status` - The status used for the prefix and info color.
+/// * `input_name` - The name to display in the prefix.
+/// * `name_width` - The column width reserved for the input name.
+/// * `info` - Optional informational text to wrap under the prefix.
+///
+/// # Returns
+///
+/// Returns the formatted status line, which may span multiple lines.
 pub fn format_status_line(
     status: &InputStatus,
     input_name: &str,

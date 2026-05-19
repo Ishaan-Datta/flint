@@ -12,7 +12,25 @@ use std::time::Duration;
 
 const UPDATE_INPUTS_CMD: &str = r"nix flake update {INPUTS}";
 
-/// Auto updates all stale inputs with `nix flake update`
+/// Auto updates all stale inputs with `nix flake update`.
+///
+/// # Arguments
+///
+/// * `inputs` - The list of inputs and their current status.
+/// * `timeout` - Maximum time allowed for the update command.
+/// * `quiet` - Whether to suppress prompts when checking for modifications.
+/// * `override_bool` - Skip modification checks when true.
+/// * `flake_dir_path` - Path to the flake directory containing `flake.lock`.
+///
+/// # Returns
+///
+/// Returns `Ok(())` when the update completes successfully, or a `WriteError`
+/// if the update command fails or file modification checks fail.
+///
+/// # Errors
+///
+/// Returns an error if the existing `flake.lock` changes are rejected or if
+/// the `nix flake update` command exits non-zero.
 pub(crate) fn update_stale_flake_inputs(
     inputs: &[Input],
     timeout: Duration,

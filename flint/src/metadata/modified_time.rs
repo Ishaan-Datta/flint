@@ -27,7 +27,21 @@ const REMOTE_MODIFIED_TIME_CMD: &str =
 
 const LOCAL_MODIFIED_TIME_CMD: &str = r"nix flake metadata --json --no-write-lock-file {PATH} | jq -er '.locks.nodes | map_values(.locked.lastModified)'";
 
-/// Fetches new modified time for a single flake url
+/// Fetch the remote modified time for a single flake URL.
+///
+/// # Arguments
+///
+/// * `url` - The flake input URL to query.
+/// * `timeout` - Maximum time allowed for the metadata command.
+///
+/// # Returns
+///
+/// Returns the remote `lastModified` timestamp as seconds since epoch.
+///
+/// # Errors
+///
+/// Returns an error if the metadata command fails or the output cannot be
+/// parsed.
 pub(crate) fn get_remote_modified_time(url: &str, timeout: Duration) -> Result<i64, FetchError> {
     let cmd = REMOTE_MODIFIED_TIME_CMD.replace("{URL}", url);
     let output = run_command_with_timeout(&cmd, timeout)?;
@@ -45,7 +59,21 @@ pub(crate) fn get_remote_modified_time(url: &str, timeout: Duration) -> Result<i
     }
 }
 
-/// Gets the last updated time for all flake inputs
+/// Get the last updated time for all local flake inputs.
+///
+/// # Arguments
+///
+/// * `timeout` - Maximum time allowed for the metadata command.
+/// * `flake_dir_path` - Path to the flake directory containing `flake.nix`.
+///
+/// # Returns
+///
+/// Returns a map of input names to optional `lastModified` timestamps.
+///
+/// # Errors
+///
+/// Returns an error if the metadata command fails or the JSON output cannot be
+/// parsed.
 pub(crate) fn get_all_local_modified_times(
     timeout: Duration,
     flake_dir_path: &Path,
@@ -67,7 +95,16 @@ pub(crate) fn get_all_local_modified_times(
     }
 }
 
-/// Print the formatted summary for input modified times
+/// Print a formatted summary of remote input modified times.
+///
+/// # Arguments
+///
+/// * `threshold` - Duration used to decide whether an input is stale.
+/// * `timeout` - Maximum time allowed for metadata commands.
+/// * `quiet` - Whether to suppress output and exit on stale inputs.
+/// * `auto_update` - Whether to auto-update stale inputs.
+/// * `override_bool` - Skip modification checks when true.
+/// * `flake_dir_path` - Path to the flake directory containing `flake.nix`.
 pub fn check_flake_inputs(
     threshold: Duration,
     timeout: Duration,
@@ -173,7 +210,21 @@ pub fn check_flake_inputs(
     }
 }
 
-/// Fetches the remote modified times for all flake input URLS
+/// Fetch the remote modified times for all flake input URLs.
+///
+/// # Arguments
+///
+/// * `url_map` - Map of input names to their URLs.
+/// * `timeout` - Maximum time allowed for each metadata command.
+///
+/// # Returns
+///
+/// Returns a map of input names to per-input results containing timestamps or
+/// errors.
+///
+/// # Panics
+///
+/// Panics if the progress style template is invalid.
 pub(crate) fn get_all_remote_modified_times(
     url_map: &HashMap<String, String>,
     timeout: Duration,

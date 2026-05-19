@@ -13,7 +13,21 @@ const PATH_CMD: &str = r#"nix flake metadata --json --no-write-lock-file {PATH} 
     '
 "#;
 
-/// Get the flake path resolved from `nix flake metadata` command
+/// Get the flake path resolved from `nix flake metadata`.
+///
+/// # Arguments
+///
+/// * `input_path` - Path or URL used to resolve the flake.
+/// * `timeout` - Maximum time allowed for the metadata command.
+///
+/// # Returns
+///
+/// Returns the resolved flake root path.
+///
+/// # Errors
+///
+/// Returns an error if the metadata command fails or the resolved path is not
+/// a directory containing `flake.nix`.
 pub fn get_flake_path(input_path: &str, timeout: Duration) -> Result<PathBuf, FetchError> {
     let cmd = PATH_CMD.replace("{PATH}", input_path);
     let output = with_command_spinner!(

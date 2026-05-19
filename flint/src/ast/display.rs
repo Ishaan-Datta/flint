@@ -4,6 +4,15 @@ use std::collections::HashMap;
 use unicode_width::UnicodeWidthStr;
 use yansi::Paint;
 
+/// Print a formatted summary of duplicate flake input dependencies.
+///
+/// # Arguments
+///
+/// * `input_deps` - Map of input names to their replacement entries.
+///
+/// # Returns
+///
+/// Returns `()` after emitting the summary to the log output.
 pub(crate) fn print_duplicates_summary(input_deps: &HashMap<String, Vec<InputReplacement>>) {
     if input_deps.is_empty() {
         tracing::info!("> No duplicate dependencies found.");

@@ -41,6 +41,11 @@ impl cmp::Ord for InputStatus {
 }
 
 impl InputStatus {
+    /// Return the plain, uncolored status marker.
+    ///
+    /// # Returns
+    ///
+    /// Returns the marker as a static string.
     pub(crate) const fn plain_char(&self) -> &'static str {
         match self {
             Self::Fresh => "✔",
@@ -49,6 +54,11 @@ impl InputStatus {
         }
     }
 
+    /// Return the colored, bold status marker.
+    ///
+    /// # Returns
+    ///
+    /// Returns the painted marker for the current status.
     pub(crate) fn painted_char(&self) -> Painted<&'static char> {
         match &self {
             Self::Fresh => '✔'.green().bold(), // or ↻ or ~
@@ -67,6 +77,17 @@ pub struct Input {
 }
 
 impl Input {
+    /// Create a new input record with a default `Fresh` status.
+    ///
+    /// # Arguments
+    ///
+    /// * `input_string` - The display name for the input.
+    /// * `local_time` - The last local update time, if available.
+    /// * `remote_time` - The fetched remote update time or a fetch error.
+    ///
+    /// # Returns
+    ///
+    /// Returns the initialized `Input`.
     pub(crate) fn new(
         input_string: &str,
         local_time: Option<&i64>,
@@ -80,6 +101,11 @@ impl Input {
         }
     }
 
+    /// Compute and update the input status using the time threshold.
+    ///
+    /// # Arguments
+    ///
+    /// * `threshold` - The maximum allowed age before the input is considered stale.
     pub(crate) fn get_status(&mut self, threshold: Duration) {
         match &self.remote_time {
             Err(e) => {
@@ -101,6 +127,11 @@ impl Input {
         }
     }
 
+    /// Build optional human-readable info based on the current status.
+    ///
+    /// # Returns
+    ///
+    /// Returns `None` for fresh inputs, or a status-specific message otherwise.
     pub(crate) fn get_additional_info(&self) -> Option<String> {
         match &self.status {
             InputStatus::Fresh => None,
@@ -112,6 +143,15 @@ impl Input {
         }
     }
 
+    /// Format the time difference between remote and local updates.
+    ///
+    /// # Returns
+    ///
+    /// Returns the formatted time difference, or "Unknown" when times are missing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal time values are missing despite earlier checks.
     pub(crate) fn get_human_readable_time_diff(&self) -> String {
         if self.local_time.is_none() {
             return "Unknown".to_string();

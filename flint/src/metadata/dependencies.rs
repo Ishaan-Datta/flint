@@ -27,6 +27,17 @@ pub(crate) struct InputReplacement {
 }
 
 impl InputReplacement {
+    /// Create a new input replacement record.
+    ///
+    /// # Arguments
+    ///
+    /// * `input_dependency` - Name of the input that depends on another input.
+    /// * `old_dependency_target` - Original dependency target string.
+    /// * `new_dependency_target` - Replacement dependency target string.
+    ///
+    /// # Returns
+    ///
+    /// Returns a populated `InputReplacement` instance.
     fn new(
         input_dependency: &str,
         old_dependency_target: &str,
@@ -58,7 +69,21 @@ impl From<InputReplacement> for String {
     }
 }
 
-/// Get the current input dependencies for the existing flake.nix
+/// Get the current input dependencies for the existing `flake.nix`.
+///
+/// # Arguments
+///
+/// * `flake_dir_path` - Path to the flake directory containing `flake.nix`.
+/// * `timeout` - Maximum time allowed for the metadata command.
+///
+/// # Returns
+///
+/// Returns a map of input names to dependency replacement entries.
+///
+/// # Errors
+///
+/// Returns an error if the metadata command fails, the JSON output cannot be
+/// parsed, or the flake inputs are missing or malformed.
 pub(crate) fn get_input_deps(
     flake_dir_path: &Path,
     timeout: Duration,

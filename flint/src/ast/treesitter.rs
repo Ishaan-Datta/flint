@@ -8,6 +8,22 @@ pub(crate) struct TextEdit {
     pub new_text: String,
 }
 
+/// Apply a text edit to the source and update the parse tree in-place.
+///
+/// # Arguments
+///
+/// * `source` - Source text to edit in-place.
+/// * `tree` - Parse tree to edit and reparse.
+/// * `parser` - Parser used for incremental reparsing.
+/// * `edit` - The byte range and replacement text to apply.
+///
+/// # Returns
+///
+/// Returns `Ok(())` after the edit is applied and the tree is reparsed.
+///
+/// # Errors
+///
+/// Returns an error if incremental reparsing fails.
 pub(crate) fn apply_edit(
     source: &mut String,
     tree: &mut Tree,
@@ -40,6 +56,15 @@ pub(crate) fn apply_edit(
     Ok(())
 }
 
+/// Find the first attrset node in a depth-first traversal.
+///
+/// # Arguments
+///
+/// * `node` - Node to search from.
+///
+/// # Returns
+///
+/// Returns the first attrset node if present.
 pub(crate) fn find_first_attrset(node: Node<'_>) -> Option<Node<'_>> {
     if node.kind() == "attrset_expression" || node.kind() == "attr_set" {
         return Some(node);
@@ -54,12 +79,31 @@ pub(crate) fn find_first_attrset(node: Node<'_>) -> Option<Node<'_>> {
     None
 }
 
+/// Collect all binding nodes within an attrset.
+///
+/// # Arguments
+///
+/// * `attrset` - Attrset node to scan.
+///
+/// # Returns
+///
+/// Returns a list of binding-like nodes found in the attrset.
 pub(crate) fn bindings_in_attrset(attrset: Node<'_>) -> Vec<Node<'_>> {
     let mut out = Vec::new();
     collect(attrset, &mut out);
     out
 }
 
+/// Recursively collect binding nodes from nested binding sets.
+///
+/// # Arguments
+///
+/// * `node` - Node to traverse.
+/// * `out` - Accumulator for found bindings.
+///
+/// # Returns
+///
+/// Returns `()` after updating `out`.
 fn collect<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
     let mut cursor = node.walk();
 
@@ -72,11 +116,32 @@ fn collect<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
     }
 }
 
+/// Find the top-level `inputs` binding in the first attrset.
+///
+/// # Arguments
+///
+/// * `root` - Root node of the parsed file.
+/// * `source` - Full source text for extracting names.
+///
+/// # Returns
+///
+/// Returns the binding node for `inputs` if found.
 pub(crate) fn find_top_level_inputs_binding<'a>(root: Node<'a>, source: &str) -> Option<Node<'a>> {
     let top_attrset = find_first_attrset(root)?;
     bindings_in_attrset(top_attrset).into_iter().find(|&binding| is_binding_named(binding, source, "inputs"))
 }
 
+/// Find a direct binding by name within a given attrset.
+///
+/// # Arguments
+///
+/// * `attrset` - Attrset node to scan.
+/// * `source` - Full source text for extracting names.
+/// * `wanted` - Binding name to match.
+///
+/// # Returns
+///
+/// Returns the matching binding node if present.
 pub(crate) fn find_attrset_binding_by_name<'a>(
     attrset: Node<'a>,
     source: &str,
@@ -92,6 +157,18 @@ pub(crate) fn find_attrset_binding_by_name<'a>(
     None
 }
 
+/// Find a binding with a two-part attrpath like `base.leaf`.
+///
+/// # Arguments
+///
+/// * `attrset` - Attrset node to scan.
+/// * `source` - Full source text for extracting names.
+/// * `base` - First segment of the attrpath.
+/// * `leaf` - Second segment of the attrpath.
+///
+/// # Returns
+///
+/// Returns the matching binding node if present.
 pub(crate) fn find_flat_attrpath_binding<'a>(
     attrset: Node<'a>,
     source: &str,
@@ -108,6 +185,15 @@ pub(crate) fn find_flat_attrpath_binding<'a>(
     None
 }
 
+/// Check whether a node kind matches a binding-like syntax node.
+///
+/// # Arguments
+///
+/// * `node` - Node to test.
+///
+/// # Returns
+///
+/// Returns `true` if the node looks like a binding.
 pub(crate) fn looks_like_binding(node: Node<'_>) -> bool {
     matches!(
         node.kind(),
@@ -115,11 +201,32 @@ pub(crate) fn looks_like_binding(node: Node<'_>) -> bool {
     )
 }
 
+/// Check whether a binding node matches a single-name binding.
+///
+/// # Arguments
+///
+/// * `node` - Binding node to test.
+/// * `source` - Full source text for extracting names.
+/// * `wanted` - Binding name to match.
+///
+/// # Returns
+///
+/// Returns `true` if the binding path is exactly `wanted`.
 pub(crate) fn is_binding_named(node: Node<'_>, source: &str, wanted: &str) -> bool {
     binding_name_path(node, source)
         .is_some_and(|p| p.len() == 1 && p[0] == wanted)
 }
 
+/// Parse the left-hand side of a binding into attrpath segments.
+///
+/// # Arguments
+///
+/// * `node` - Binding node to inspect.
+/// * `source` - Full source text for extracting names.
+///
+/// # Returns
+///
+/// Returns the attrpath segments if a left-hand side exists.
 pub(crate) fn binding_name_path(node: Node<'_>, source: &str) -> Option<Vec<String>> {
     let text = &source[node.byte_range()];
     let lhs = text.split('=').next()?.trim();
@@ -131,6 +238,16 @@ pub(crate) fn binding_name_path(node: Node<'_>, source: &str) -> Option<Vec<Stri
     Some(parse_attrpath_text(lhs))
 }
 
+/// Return a named child by field name, or the last named child as a fallback.
+///
+/// # Arguments
+///
+/// * `node` - Node to query.
+/// * `field` - Field name to look up.
+///
+/// # Returns
+///
+/// Returns the named child node if present.
 pub(crate) fn child_by_field_name_or_last_named<'a>(
     node: Node<'a>,
     field: &str,
@@ -141,6 +258,15 @@ pub(crate) fn child_by_field_name_or_last_named<'a>(
     })
 }
 
+/// Parse a dotted attrpath string into a list of segments.
+///
+/// # Arguments
+///
+/// * `text` - Attrpath string, possibly containing quotes.
+///
+/// # Returns
+///
+/// Returns the non-empty attrpath segments.
 pub(crate) fn parse_attrpath_text(text: &str) -> Vec<String> {
     text.split('.')
         .map(str::trim)
@@ -150,6 +276,17 @@ pub(crate) fn parse_attrpath_text(text: &str) -> Vec<String> {
         .collect()
 }
 
+/// Filter wanted lines to those missing from an attrset.
+///
+/// # Arguments
+///
+/// * `attrset_rhs` - Attrset RHS node to check.
+/// * `source` - Full source text for extracting names.
+/// * `wanted_lines` - Lines to test for missing assignments.
+///
+/// # Returns
+///
+/// Returns the subset of `wanted_lines` not present in the attrset.
 pub(crate) fn filter_missing_insertions(
     attrset_rhs: Node<'_>,
     source: &str,
@@ -162,6 +299,17 @@ pub(crate) fn filter_missing_insertions(
         .collect()
 }
 
+    /// Check whether an attrset already contains an assignment for a given line.
+    ///
+    /// # Arguments
+    ///
+    /// * `attrset_rhs` - Attrset RHS node to check.
+    /// * `source` - Full source text for extracting names.
+    /// * `line` - Assignment line whose LHS is used for matching.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if a binding with the same attrpath exists.
 pub(crate) fn attrset_contains_assignment(attrset_rhs: Node<'_>, source: &str, line: &str) -> bool {
     let lhs = line.split('=').next().map_or("", str::trim);
     let wanted_path = parse_attrpath_text(lhs).join(".");
@@ -175,6 +323,17 @@ pub(crate) fn attrset_contains_assignment(attrset_rhs: Node<'_>, source: &str, l
     false
 }
 
+/// Create a text edit that inserts lines before an attrset closing brace.
+///
+/// # Arguments
+///
+/// * `attrset_rhs` - Attrset RHS node to edit.
+/// * `source` - Full source text for extracting indentation.
+/// * `lines` - Assignment lines to insert.
+///
+/// # Returns
+///
+/// Returns a `TextEdit` that inserts the requested lines.
 pub(crate) fn insert_into_existing_attrset(
     attrset_rhs: Node<'_>,
     source: &str,
@@ -208,6 +367,18 @@ pub(crate) fn insert_into_existing_attrset(
     })
 }
 
+/// Rewrite a flat `input.url` binding into an attrset with extra lines.
+///
+/// # Arguments
+///
+/// * `flat_binding` - Binding node for the flat `input.url` assignment.
+/// * `source` - Full source text for extracting the RHS.
+/// * `input_name` - Name of the input attrset to emit.
+/// * `lines` - Additional assignment lines to include in the attrset.
+///
+/// # Returns
+///
+/// Returns the replacement text for the rewritten attrset.
 pub(crate) fn rewrite_flat_url_binding_to_attrset(
     flat_binding: Node<'_>,
     source: &str,
@@ -245,6 +416,15 @@ pub(crate) fn rewrite_flat_url_binding_to_attrset(
     Ok(out)
 }
 
+/// Detect the indentation used for entries inside an attrset.
+///
+/// # Arguments
+///
+/// * `attrset_text` - Text of the attrset, including braces.
+///
+/// # Returns
+///
+/// Returns the indentation prefix if an inner line is found.
 pub(crate) fn detect_attrset_inner_indent(attrset_text: &str) -> Option<String> {
     for line in attrset_text.lines().skip(1) {
         let trimmed = line.trim();
@@ -255,6 +435,16 @@ pub(crate) fn detect_attrset_inner_indent(attrset_text: &str) -> Option<String> 
     None
 }
 
+/// Compute the whitespace indentation for the line containing `byte`.
+///
+/// # Arguments
+///
+/// * `source` - Full source text to inspect.
+/// * `byte` - Byte offset within `source`.
+///
+/// # Returns
+///
+/// Returns the indentation prefix for the line.
 pub(crate) fn line_indent_at(source: &str, byte: usize) -> String {
     let line_start = source[..byte].rfind('\n').map_or(0, |i| i + 1);
     source[line_start..byte]
@@ -263,10 +453,30 @@ pub(crate) fn line_indent_at(source: &str, byte: usize) -> String {
         .collect()
 }
 
+/// Return the byte offset for the start of the line containing `byte`.
+///
+/// # Arguments
+///
+/// * `source` - Full source text to inspect.
+/// * `byte` - Byte offset within `source`.
+///
+/// # Returns
+///
+/// Returns the byte index of the line start.
 pub(crate) fn line_start_byte_at(source: &str, byte: usize) -> usize {
     source[..byte].rfind('\n').map_or(0, |i| i + 1)
 }
 
+/// Convert a byte offset into a Tree-sitter point (row and column).
+///
+/// # Arguments
+///
+/// * `source` - Full source text to inspect.
+/// * `byte` - Byte offset within `source`.
+///
+/// # Returns
+///
+/// Returns a `Point` with zero-based row and column measured in bytes.
 pub(crate) fn byte_to_point(source: &str, byte: usize) -> Point {
     let mut row = 0usize;
     let mut column = 0usize;
@@ -281,6 +491,16 @@ pub(crate) fn byte_to_point(source: &str, byte: usize) -> Point {
     Point { row, column }
 }
 
+/// Compute the end point after inserting text at a given start point.
+///
+/// # Arguments
+///
+/// * `start` - Starting point before insertion.
+/// * `inserted` - Inserted text.
+///
+/// # Returns
+///
+/// Returns the `Point` after the inserted text, measured in bytes.
 pub(crate) fn point_after_insertion(start: Point, inserted: &str) -> Point {
     let mut row = start.row;
     let mut column = start.column;

@@ -18,6 +18,21 @@ pub(crate) struct CommandResult {
 }
 
 impl CommandResult {
+    /// Collect stdout and stderr from a completed child process.
+    ///
+    /// # Arguments
+    ///
+    /// * `stdout` - The child stdout handle to read.
+    /// * `stderr` - The child stderr handle to read.
+    /// * `status` - The exit status returned by the child.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `CommandResult` containing the exit status and captured output.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if reading stdout or stderr fails.
     pub(crate) fn new(
         mut stdout: ChildStdout,
         mut stderr: ChildStderr,
@@ -37,6 +52,22 @@ impl CommandResult {
     }
 }
 
+/// Run a shell command with a timeout and capture its output.
+///
+/// # Arguments
+///
+/// * `cmd` - The shell command to execute.
+/// * `timeout` - The maximum duration to wait for the command to finish.
+///
+/// # Returns
+///
+/// Returns a `CommandResult` with the exit status and captured output when the
+/// command completes before the timeout.
+///
+/// # Errors
+///
+/// Returns a `CommandError` if the command fails to start, if the timeout
+/// could not be configured, or if the command exceeds the timeout.
 pub(crate) fn run_command_with_timeout(
     cmd: &str,
     timeout: Duration,
@@ -68,6 +99,27 @@ pub(crate) fn run_command_with_timeout(
         }
 }
 
+/// Run a command with a spinner and a timeout, returning its result.
+///
+/// # Arguments
+///
+/// * `$progress_msg` - The message to display next to the spinner.
+/// * `$cmd` - The shell command to execute.
+/// * `$timeout` - The maximum duration to wait for the command to finish.
+///
+/// # Returns
+///
+/// Returns a `CommandResult` with the exit status and captured output when the
+/// command completes before the timeout.
+///
+/// # Errors
+///
+/// Returns a `CommandError` if the command fails to start, if the timeout
+/// could not be configured, or if the command exceeds the timeout.
+///
+/// # Panics
+///
+/// Panics if the spinner progress template is invalid.
 macro_rules! with_command_spinner {
     ($progress_msg:expr, $cmd:expr, $timeout:expr $(,)?) => {{
         use crate::command::run_command_with_timeout;

@@ -20,6 +20,25 @@ const VALIDATE_FILE_NIX_CMD: &str = r"nix flake metadata --no-write-lock-file {P
 const CHECK_GIT_REPO_CMD: &str = r"git -C {DIR_PATH} rev-parse --show-toplevel";
 const CHECK_UNSTAGED_CHANGES_CMD: &str = r"git -C {DIR_PATH} diff --quiet -- {FILE_NAME}";
 
+/// Analyze flake inputs, report duplicates, and optionally rewrite the file.
+///
+/// # Arguments
+///
+/// * `fix` - If true, apply edits to the flake file.
+/// * `quiet` - If true, suppress prompts and exit when duplicates are found.
+/// * `timeout` - Timeout for external commands.
+/// * `override_bool` - If true, skip the git dirty check when writing.
+/// * `backup` - If true, save `flake.nix` as `flake.nix.bak` before writing.
+/// * `flake_dir_path` - Directory that contains the target `flake.nix`.
+///
+/// # Returns
+///
+/// Returns `()` after printing a summary and optionally writing a new file.
+///
+/// # Errors
+///
+/// This function does not return errors; it logs failures and exits the
+/// process with a non-zero status.
 pub fn rewrite_flake_inputs(
     fix: bool,
     quiet: bool,
@@ -76,6 +95,25 @@ pub fn rewrite_flake_inputs(
     }
 }
 
+/// Write a validated flake to disk, optionally backing up and checking for local edits.
+///
+/// # Arguments
+///
+/// * `new_flake_dir_path` - Directory that contains the target `flake.nix`.
+/// * `new_flake_content` - Full contents for the new flake file.
+/// * `override_bool` - If true, skip the git dirty check.
+/// * `quiet` - If true, avoid prompts and exit on dirty files.
+/// * `backup` - If true, rename the original flake to `flake.nix.bak`.
+/// * `timeout` - Timeout for external commands.
+///
+/// # Returns
+///
+/// Returns `Ok(())` after the new flake has been validated and written.
+///
+/// # Errors
+///
+/// Returns an error on IO failures, validation command failures, dirty-file
+/// checks, or user aborts.
 pub(crate) fn write_new_flake_file(
     new_flake_dir_path: &Path,
     new_flake_content: &str,
@@ -125,6 +163,26 @@ pub(crate) fn write_new_flake_file(
     Ok(())
 }
 
+/// Check for unstaged changes in the target flake file and optionally prompt.
+///
+/// # Arguments
+///
+/// * `flake_path` - Path to the `flake.nix` file to inspect.
+/// * `file_name` - File name used in the git diff check.
+/// * `quiet` - If true, do not prompt; exit on dirty files.
+/// * `timeout` - Timeout for git commands.
+///
+/// # Returns
+///
+/// Returns `Ok(())` when the file is clean, or the user confirms overwriting.
+///
+/// # Errors
+///
+/// Returns an error if git commands fail or the user rejects overwriting.
+///
+/// # Panics
+///
+/// Panics if `flake_path` has no parent directory.
 pub(crate) fn check_existing_file_modifications(
     flake_path: &Path,
     file_name: &str,
@@ -200,6 +258,21 @@ pub(crate) fn check_existing_file_modifications(
     Ok(())
 }
 
+/// Apply input dependency edits to a flake file using a Treesitter AST.
+///
+/// # Arguments
+///
+/// * `flake_file_content` - Full contents of the flake file to edit.
+/// * `input_dep_edits` - Map of input name to dependency lines to insert.
+///
+/// # Returns
+///
+/// Returns the updated flake file contents after applying all edits.
+///
+/// # Errors
+///
+/// Returns a parse error if the flake cannot be parsed, the inputs attribute
+/// is missing or malformed, or incremental reparse fails.
 pub(crate) fn apply_flake_input_edits(
     flake_file_content: &str,
     input_dep_edits: &HashMap<String, Vec<String>>,

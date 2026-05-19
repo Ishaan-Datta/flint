@@ -11,7 +11,21 @@ builtins.mapAttrs (_: v: v.url or null) ((import {PATH}).inputs)
 '
 ";
 
-/// Get the URL for each flake.nix input
+/// Get the URL for each `flake.nix` input.
+///
+/// # Arguments
+///
+/// * `timeout` - Maximum time allowed for the Nix evaluation.
+/// * `flake_dir_path` - Path to the flake directory containing `flake.nix`.
+///
+/// # Returns
+///
+/// Returns a map of input names to their resolved URL strings.
+///
+/// # Errors
+///
+/// Returns an error if the Nix command fails or the JSON output cannot be
+/// parsed.
 pub(crate) fn get_input_urls(
     timeout: Duration,
     flake_dir_path: &Path,
