@@ -1,12 +1,12 @@
 [workspace]
-members = ["xtask", "flint"]
+members  = [ "xtask", "flint" ]
 resolver = "3"
 
 [workspace.package]
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.94.1"
-license = "GPL-3.0"
+edition      = "2024"
+license      = "GPL-3.0"
+rust-version = "1.94.0"
+version      = "0.1.0"
 
 [workspace.dependencies]
 flint = { path = "flint" }
@@ -14,52 +14,45 @@ flint = { path = "flint" }
 anstyle = "1.0.14"
 anyhow = "1.0.102"
 chrono = "0.4.44"
-clap = { version = "4.6.0", default-features = true, features = [
-    "derive",
-    "env",
-] }
-clap-verbosity-flag = { version = "3.0.4", default-features = false, features = [
-    "tracing",
-] }
-indicatif = { version = "0.18.4", features = ["rayon"] }
-inquire = { default-features = false, features = [
-    "console",
-], version = "0.9.4" }
+clap = { default-features = true, features = [ "derive", "env" ], version = "4.6.0" }
+clap-verbosity-flag = { default-features = false, features = [ "tracing" ], version = "3.0.4" }
+clap_complete = "4.6.5"
+clap_complete_nushell = "4.6.0"
+clap_mangen = "0.3.0"
+indicatif = { features = [ "rayon" ], version = "0.18.4" }
+inquire = { default-features = false, features = [ "console" ], version = "0.9.4" }
 rayon = "1.11.0"
-serde = { version = "1.0.228", features = ["derive"] }
+roff = "1.1.1"
+serde = { features = [ "derive" ], version = "1.0.228" }
 serde_json = "1.0.149"
 tempfile = "3.27.0"
-textwrap = { version = "0.16.2", features = ["terminal_size"] }
+textwrap = { features = [ "terminal_size" ], version = "0.16.2" }
 thiserror = "2.0.18"
 tracing = "0.1.44"
 tracing-indicatif = "0.3.14"
-tracing-subscriber = { version = "0.3.23", default-features = true, features = [
-    "ansi",
-    "fmt",
-    "env-filter",
-] }
+tracing-subscriber = { default-features = true, features = [
+  "ansi",
+  "fmt",
+  "env-filter",
+], version = "0.3.23" }
 tree-sitter = "0.26.8"
 tree-sitter-nix = "0.3.0"
 unicode-width = "0.2.2"
 wait-timeout = "0.2.1"
 yansi = "1.0.1"
-clap_complete = "4.6.5"
-clap_complete_nushell = "4.6.0"
-clap_mangen = "0.3.0"
-roff = "1.1.1"
 
 [workspace.lints.clippy]
-panic = "deny"
-unwrap_used = "deny"
-expect_used = "allow"
-todo = "warn"
-unimplemented = "warn"
-unreachable = "warn"
-match_same_arms = "allow"
+expect_used               = "allow"
 fn_params_excessive_bools = "allow"
-missing_errors_doc = "allow"
+match_same_arms           = "allow"
+missing_errors_doc        = "allow"
+panic                     = "deny"
+todo                      = "warn"
+unimplemented             = "warn"
+unreachable               = "warn"
+unwrap_used               = "deny"
 
 [profile.release]
-lto = true
+lto       = true
 opt-level = 3
-strip = true
+strip     = true

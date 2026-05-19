@@ -1,0 +1,18 @@
+assert_lefthook_installed: true
+colors: false
+output: false
+pre-commit:
+  jobs:
+    - name: format
+      run: just fmt
+      stage_fixed: true
+pre-push:
+  jobs:
+    - name: check rust format
+      run: just fmt-check
+      fail_text: "Rust format check failed, run `just fmt`"
+    - name: check taplo format
+      run: just taplo-check
+      fail_text: "Toml format check failed, run `just fmt`"
+    - name: check lint
+      run: just cargo-check
