@@ -45,7 +45,7 @@ pub fn print_summary_message(start: Instant) {
   let summary = format!("Finished at {t24} after {duration}s")
     .bold()
     .to_string();
-  tracing::info!("{summary}\n");
+  tracing::info!("\n{summary}\n");
 }
 
 /// Paint informational text based on the input status.

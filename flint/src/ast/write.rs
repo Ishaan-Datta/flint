@@ -32,7 +32,7 @@ use crate::{
 };
 
 const VALIDATE_FILE_NIX_CMD: &str =
-  r"nix flake metadata --no-write-lock-file {PATH}'";
+  r"nix flake metadata --no-write-lock-file {PATH}";
 const CHECK_GIT_REPO_CMD: &str = r"git -C {DIR_PATH} rev-parse --show-toplevel";
 const CHECK_UNSTAGED_CHANGES_CMD: &str =
   r"git -C {DIR_PATH} diff --quiet -- {FILE_NAME}";
@@ -133,7 +133,7 @@ pub fn rewrite_flake_inputs(
 ///
 /// Returns an error on IO failures, validation command failures, dirty-file
 /// checks, or user aborts.
-pub(crate) fn write_new_flake_file(
+pub fn write_new_flake_file(
   new_flake_dir_path: &Path,
   new_flake_content: &str,
   override_bool: bool,
@@ -173,12 +173,9 @@ pub(crate) fn write_new_flake_file(
   }
 
   if !override_bool {
-    check_existing_file_modifications(
-      &original_flake_path,
-      "flake.nix",
-      quiet,
-      timeout,
-    )?;
+    let status =
+      run_git_file_status(&original_flake_path, "flake.nix", timeout)?;
+    handle_dirty_file_status(status, &original_flake_path, quiet)?;
   }
 
   fs::rename(temp_flake_path, &original_flake_path)?;
@@ -189,32 +186,38 @@ pub(crate) fn write_new_flake_file(
   Ok(())
 }
 
-/// Check for unstaged changes in the target flake file and optionally prompt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitFileStatus {
+  NotRepo,
+  Clean,
+  Dirty,
+}
+
+/// Run git commands to determine if the target file has unstaged changes.
 ///
 /// # Arguments
 ///
 /// * `flake_path` - Path to the `flake.nix` file to inspect.
 /// * `file_name` - File name used in the git diff check.
-/// * `quiet` - If true, do not prompt; exit on dirty files.
 /// * `timeout` - Timeout for git commands.
 ///
 /// # Returns
 ///
-/// Returns `Ok(())` when the file is clean, or the user confirms overwriting.
+/// Returns `Ok(GitFileStatus::Clean)` when the file is clean, `Dirty` when
+/// it has unstaged changes, and `NotRepo` when the file is not in a git repo.
 ///
 /// # Errors
 ///
-/// Returns an error if git commands fail or the user rejects overwriting.
+/// Returns an error if git commands fail.
 ///
 /// # Panics
 ///
 /// Panics if `flake_path` has no parent directory.
-pub(crate) fn check_existing_file_modifications(
+pub fn run_git_file_status(
   flake_path: &Path,
   file_name: &str,
-  quiet: bool,
   timeout: Duration,
-) -> Result<(), WriteError> {
+) -> Result<GitFileStatus, WriteError> {
   let cmd = CHECK_GIT_REPO_CMD.replace(
     "{DIR_PATH}",
     &flake_path
@@ -225,6 +228,7 @@ pub(crate) fn check_existing_file_modifications(
   );
   let output = run_command_with_timeout(&cmd, timeout)?;
 
+  // TODO: replace "flake" with file name in the strings
   if output.status.success() {
     tracing::debug!("Detected flake is in a git repository");
     let cmd = CHECK_UNSTAGED_CHANGES_CMD
@@ -245,11 +249,11 @@ pub(crate) fn check_existing_file_modifications(
     match output.status.code() {
       Some(0) => {
         tracing::debug!("Detected file does not have unstaged changes");
-        return Ok(());
+        return Ok(GitFileStatus::Clean);
       },
       Some(1) => {
         tracing::debug!("Detected file has unstaged changes");
-        true
+        return Ok(GitFileStatus::Dirty);
       },
       _ => {
         let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
@@ -260,28 +264,53 @@ pub(crate) fn check_existing_file_modifications(
         )))?
       },
     };
-
-    // Exit if user input is required but quiet mode is enabled
-    if quiet {
-      exit(1);
-    }
-
-    let confirmation = inquire::Confirm::new(&format!(
-      "The flake at path: {} has changes that are not commited in git, \
-       override the changes?",
-      flake_path.display()
-    ))
-    .with_default(false)
-    .prompt()?;
-
-    if !confirmation {
-      return Err(WriteError::AbortUserInput);
-    }
-
-    return Ok(());
   }
 
   tracing::debug!("Did not detect flake is in a git repository");
+  Ok(GitFileStatus::NotRepo)
+}
+
+/// Handle a dirty file status by optionally prompting or aborting.
+///
+/// # Arguments
+///
+/// * `status` - Result of the git status checks for the target file.
+/// * `flake_path` - Path to the `flake.nix` file to inspect.
+/// * `quiet` - If true, do not prompt; exit on dirty files.
+///
+/// # Returns
+///
+/// Returns `Ok(())` when the file is clean or the user confirms overwriting.
+///
+/// # Errors
+///
+/// Returns an error if the user rejects overwriting.
+pub(crate) fn handle_dirty_file_status(
+  status: GitFileStatus,
+  flake_path: &Path,
+  quiet: bool,
+) -> Result<(), WriteError> {
+  if status != GitFileStatus::Dirty {
+    return Ok(());
+  }
+
+  // Exit if user input is required but quiet mode is enabled
+  if quiet {
+    exit(1);
+  }
+
+  let confirmation = inquire::Confirm::new(&format!(
+    "The flake at path: {} has changes that are not commited in git, override \
+     the changes?",
+    flake_path.display()
+  ))
+  .with_default(false)
+  .prompt()?;
+
+  if !confirmation {
+    return Err(WriteError::AbortUserInput);
+  }
+
   Ok(())
 }
 

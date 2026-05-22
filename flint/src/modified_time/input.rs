@@ -157,23 +157,12 @@ impl Input {
   ///
   /// Returns the formatted time difference, or "Unknown" when times are
   /// missing.
-  ///
-  /// # Panics
-  ///
-  /// Panics if the internal time values are missing despite earlier checks.
   pub(crate) fn get_human_readable_time_diff(&self) -> String {
-    if self.local_time.is_none() {
-      return "Unknown".to_string();
+    match (self.local_time, self.remote_time.clone()) {
+      (Some(local_time), Ok(remote_time)) => {
+        format_age(remote_time - local_time)
+      },
+      _ => "Unknown".to_string(),
     }
-    if self.remote_time.is_err() {
-      return "Unknown".to_string();
-    }
-    format_age(
-      self
-        .remote_time
-        .clone()
-        .expect("Validated remote time earlier")
-        - self.local_time.expect("Validated local time earlier"),
-    )
   }
 }

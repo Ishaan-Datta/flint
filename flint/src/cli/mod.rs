@@ -71,7 +71,13 @@ pub struct Cli {
   ///
   /// Considers "existing change" if the file has changes tracked by git that
   /// are not staged/commited
-  #[arg(short, long = "override", default_value_t = false, global = true)]
+  #[arg(
+    short,
+    long = "override",
+    default_value_t = false,
+    global = true,
+    env = "FLINT_OVERRIDE"
+  )]
   override_bool: bool,
   #[command(subcommand)]
   command:       Commands,
@@ -122,8 +128,8 @@ Examples:
     /// Apply flake input consolidation
     ///
     /// Uses Treesitter AST parsing to inserting
-    /// `inputs.<transitive_input>.follows = "<transitive_input>"` to de-dupe
-    /// extra input instances
+    /// `inputs.<transitive_input>.follows = "<transitive_input>"` to
+    /// de-dupe extra input instances
     #[arg(short, long, default_value_t = false)]
     fix:    bool,
     /// Rename the original flake file to `flake.nix.bak` as a backup

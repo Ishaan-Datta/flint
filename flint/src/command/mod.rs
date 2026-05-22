@@ -27,7 +27,8 @@ impl CommandResult {
   ///
   /// # Returns
   ///
-  /// Returns a `CommandResult` containing the exit status and captured output.
+  /// Returns a `CommandResult` containing the exit status and captured
+  /// output.
   ///
   /// # Errors
   ///
@@ -131,7 +132,8 @@ macro_rules! with_command_spinner {
 
     header_span.pb_set_style(
       &ProgressStyle::with_template("{spinner} {msg}")
-        .expect("valid progress template"),
+        .expect("valid progress template")
+        .tick_chars("⠋⠙⠹⠸⢰⣠⣄⡆⡇⡏⠏ "),
     );
 
     header_span.pb_set_message($progress_msg);

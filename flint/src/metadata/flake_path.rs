@@ -43,10 +43,6 @@ pub fn get_flake_path(
   let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
 
   if output.status.success() {
-    if !stderr_str.trim().is_empty() {
-      tracing::warn!("{stderr_str}");
-    }
-
     let flake_path = PathBuf::from(stdout_str);
 
     if !flake_path.exists() || !flake_path.is_dir() {

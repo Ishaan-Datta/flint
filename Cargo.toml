@@ -19,6 +19,7 @@ clap-verbosity-flag = { default-features = false, features = [ "tracing" ], vers
 clap_complete = "4.6.5"
 clap_complete_nushell = "4.6.0"
 clap_mangen = "0.3.0"
+color-eyre = "0.6.5"
 indicatif = { features = [ "rayon" ], version = "0.18.4" }
 inquire = { default-features = false, features = [ "console" ], version = "0.9.4" }
 rayon = "1.11.0"
@@ -35,6 +36,7 @@ tracing-subscriber = { default-features = true, features = [
   "fmt",
   "env-filter",
 ], version = "0.3.23" }
+tracing-test = "0.2.6"
 tree-sitter = "0.26.8"
 tree-sitter-nix = "0.3.0"
 unicode-width = "0.2.2"

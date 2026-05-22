@@ -5,7 +5,7 @@ use crate::{
   errors::{CommandError, FetchError},
 };
 
-const DEPENDENCIES_CMD: &str = r#"sleep 10 && nix flake metadata --json --recreate-lock-file --no-write-lock-file {PATH} \
+const DEPENDENCIES_CMD: &str = r#"nix flake metadata --json --recreate-lock-file --no-write-lock-file {PATH} \
   | jq -e '.locks.nodes
         | map_values(
             (.inputs // {})

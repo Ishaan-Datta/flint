@@ -26,7 +26,6 @@ use crate::{
 };
 
 const REMOTE_MODIFIED_TIME_CMD: &str = r"nix --refresh flake metadata {URL} --json --no-write-lock-file | jq -er '.lastModified'";
-
 const LOCAL_MODIFIED_TIME_CMD: &str = r"nix flake metadata --json --no-write-lock-file {PATH} | jq -er '.locks.nodes | map_values(.locked.lastModified)'";
 
 /// Fetch the remote modified time for a single flake URL.
@@ -179,8 +178,6 @@ pub fn check_flake_inputs(
     + 1;
   let mut last_status = None::<InputStatus>;
 
-  tracing::info!("");
-
   print_summary_message(start_time);
 
   for input in inputs.clone() {
@@ -256,7 +253,8 @@ pub(crate) fn get_all_remote_modified_times(
       "{spinner} {pos}/{len} [{wide_bar:.cyan/blue}] {msg}",
     )
     .expect("Progress style should be created")
-    .progress_chars("#>-"),
+    .progress_chars("#>-")
+    .tick_chars("⠋⠙⠹⠸⢰⣠⣄⡆⡇⡏⠏⠛ "),
   );
   header_span.pb_set_length(url_map.len() as u64);
   header_span.pb_set_message("Fetching remote modified times");
@@ -277,7 +275,8 @@ pub(crate) fn get_all_remote_modified_times(
         );
         item_span.pb_set_style(
           &ProgressStyle::with_template("  {spinner} {msg}")
-            .expect("Progress style should be created"),
+            .expect("Progress style should be created")
+            .tick_chars("⠋⠙⠹⠸⢰⣠⣄⡆⡇⡏⠏⠛ "),
         );
         let ts = item_span.in_scope(|| {
           item_span.pb_set_message(&format!("Fetching {url}"));

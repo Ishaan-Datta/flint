@@ -1,13 +1,13 @@
 use std::{path::Path, process::exit, time::Duration};
 
 use crate::{
-  ast::check_existing_file_modifications,
+  ast::write::{handle_dirty_file_status, run_git_file_status},
   command::with_command_spinner,
   errors::{CommandError, WriteError},
   modified_time::{Input, InputStatus, print_summary_message},
 };
 
-const UPDATE_INPUTS_CMD: &str = r"nix flake update {INPUTS}";
+const UPDATE_INPUTS_CMD: &str = r"nix flake update {INPUTS} --flake {PATH}";
 
 /// Auto updates all stale inputs with `nix flake update`.
 ///
@@ -55,15 +55,13 @@ pub(crate) fn update_stale_flake_inputs(
 
   let flake_lock_file = flake_dir_path.join("flake.lock");
   if flake_lock_file.exists() && flake_lock_file.is_file() && !override_bool {
-    check_existing_file_modifications(
-      &flake_lock_file,
-      "flake.lock",
-      quiet,
-      timeout,
-    )?;
+    let status = run_git_file_status(&flake_lock_file, "flake.lock", timeout)?;
+    handle_dirty_file_status(status, &flake_lock_file, quiet)?;
   }
 
-  let cmd = UPDATE_INPUTS_CMD.replace("{INPUTS}", &stale_inputs.join(" "));
+  let cmd = UPDATE_INPUTS_CMD
+    .replace("{INPUTS}", &stale_inputs.join(" "))
+    .replace("{PATH}", &flake_dir_path.display().to_string());
   let output =
     with_command_spinner!("Updating stale flake inputs", &cmd, timeout)?;
 
