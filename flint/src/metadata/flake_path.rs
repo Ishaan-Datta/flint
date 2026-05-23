@@ -33,15 +33,10 @@ pub fn get_flake_path(
   input_path: &str,
   timeout: Duration,
 ) -> Result<PathBuf, FetchError> {
-  if !PathBuf::from(input_path).join("flake.lock").exists() {
-    tracing::warn!(
-      "Flake.lock file does not exist in: {}, taking longer to rebuild flake \
-       graph",
-      input_path
-    );
-  }
+  let quoted_path = shlex::try_quote(input_path)
+    .map_err(|_| FetchError::InvalidPath(PathBuf::from(input_path)))?;
 
-  let cmd = PATH_CMD.replace("{PATH}", input_path);
+  let cmd = PATH_CMD.replace("{PATH}", quoted_path.as_ref());
   let output = with_command_spinner!(
     "Resolving the flake path with `nix flake metadata`",
     &cmd,

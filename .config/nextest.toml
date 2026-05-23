@@ -8,4 +8,5 @@ fail-fast = false
 # Show output for failed tests only
 status-level = "fail"
 
-retries = { backoff = "fixed", count = 2, delay = "1s" }
+# Disable retries
+retries = 0
