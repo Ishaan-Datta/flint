@@ -72,7 +72,7 @@ impl From<InputReplacement> for String {
     }
 }
 
-/// Get the current input dependencies for the existing `flake.nix`.
+/// Get duplicate input dependencies from the existing `flake.nix`.
 ///
 /// # Arguments
 ///
@@ -81,7 +81,8 @@ impl From<InputReplacement> for String {
 ///
 /// # Returns
 ///
-/// Returns a map of input names to dependency replacement entries.
+/// Returns a map of input names to dependency replacement entries for duplicate
+/// dependency targets (suffix `_2` to `_99`).
 ///
 /// # Errors
 ///

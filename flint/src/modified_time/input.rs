@@ -21,7 +21,7 @@ impl PartialOrd for InputStatus {
 }
 
 impl cmp::Ord for InputStatus {
-    /// Ordered as: Updates -> Errored -> Fresh
+    /// Ordered as: Stale -> Error -> Fresh
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         match (self, other) {
             // Same variants are equal

@@ -209,7 +209,7 @@ pub enum GitFileStatus {
 ///
 /// # Arguments
 ///
-/// * `flake_path` - Path to the `flake.nix` file to inspect.
+/// * `file_path` - Path to the file to inspect.
 /// * `file_name` - File name used in the git diff check.
 /// * `timeout` - Timeout for git commands.
 ///
@@ -224,7 +224,7 @@ pub enum GitFileStatus {
 ///
 /// # Panics
 ///
-/// Panics if `flake_path` has no parent directory.
+/// Panics if `file_path` has no parent directory.
 pub fn run_git_file_status(
     file_path: &Path,
     file_name: &str,

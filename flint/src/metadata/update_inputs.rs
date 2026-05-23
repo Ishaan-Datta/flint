@@ -21,8 +21,10 @@ const UPDATE_INPUTS_CMD: &str = r"nix flake update {INPUTS} --flake {PATH}";
 ///
 /// # Returns
 ///
-/// Returns `Ok(())` when the update completes successfully, or a `WriteError`
-/// if the update command fails or file modification checks fail.
+/// Returns `Ok(())` when the update completes successfully.
+/// Exits the process with status 0 when there are no stale inputs.
+/// Returns a `WriteError` if the update command fails or file modification
+/// checks fail.
 ///
 /// # Errors
 ///

@@ -66,8 +66,9 @@ impl CommandResult {
 ///
 /// # Errors
 ///
-/// Returns a `CommandError` if the command fails to start, if the timeout
-/// could not be configured, or if the command exceeds the timeout.
+/// Returns a `CommandError` if the command fails to start, stdout or stderr
+/// pipes cannot be captured, output collection fails, the timeout could not be
+/// configured, or the command exceeds the timeout.
 pub(crate) fn run_command_with_timeout(
     cmd: &str,
     timeout: Duration,

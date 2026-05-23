@@ -19,7 +19,7 @@ builtins.mapAttrs (_: v: v.url or null) ((import {PATH}).inputs)
 ///
 /// # Returns
 ///
-/// Returns a map of input names to their resolved URL strings.
+/// Returns a map of input names to URL strings declared in `flake.nix`.
 ///
 /// # Errors
 ///
