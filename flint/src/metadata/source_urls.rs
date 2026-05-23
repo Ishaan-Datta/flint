@@ -25,7 +25,7 @@ builtins.mapAttrs (_: v: v.url or null) ((import {PATH}).inputs)
 ///
 /// Returns an error if the Nix command fails or the JSON output cannot be
 /// parsed.
-pub(crate) fn get_input_urls(
+pub fn get_input_urls(
   timeout: Duration,
   flake_dir_path: &Path,
 ) -> Result<HashMap<String, String>, FetchError> {

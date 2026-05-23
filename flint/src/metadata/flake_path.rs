@@ -6,10 +6,11 @@ use crate::{
 };
 
 const PATH_CMD: &str = r#"nix flake metadata --json --no-write-lock-file {PATH} \
-    | jq -er '
-    (.resolved.url | sub("^file://"; "")) as $root
-    | (.resolved.dir // "") as $dir
-    | if $dir == "" then $root else $root + "/" + $dir end
+  | jq -er '
+      (.resolved.url // error("nix flake metadata returned null for .resolved.url")) as $url
+      | ($url | sub("^file://"; "")) as $root
+      | (.resolved.dir // "") as $dir
+      | if $dir == "" then $root else $root + "/" + $dir end
     '
 "#;
 
@@ -32,6 +33,14 @@ pub fn get_flake_path(
   input_path: &str,
   timeout: Duration,
 ) -> Result<PathBuf, FetchError> {
+  if !PathBuf::from(input_path).join("flake.lock").exists() {
+    tracing::warn!(
+      "Flake.lock file does not exist in: {}, taking longer to rebuild flake \
+       graph",
+      input_path
+    );
+  }
+
   let cmd = PATH_CMD.replace("{PATH}", input_path);
   let output = with_command_spinner!(
     "Resolving the flake path with `nix flake metadata`",
@@ -43,6 +52,12 @@ pub fn get_flake_path(
   let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
 
   if output.status.success() {
+    tracing::debug!("Stdout: {stdout_str}");
+
+    if !stderr_str.is_empty() {
+      tracing::debug!("Stderr: {stderr_str}");
+    }
+
     let flake_path = PathBuf::from(stdout_str);
 
     if !flake_path.exists() || !flake_path.is_dir() {

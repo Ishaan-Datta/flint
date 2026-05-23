@@ -1,7 +1,7 @@
 use std::{
   cmp,
   collections::HashMap,
-  path::Path,
+  path::{Path, PathBuf},
   process::exit,
   time::Duration,
 };
@@ -43,7 +43,7 @@ const LOCAL_MODIFIED_TIME_CMD: &str = r"nix flake metadata --json --no-write-loc
 ///
 /// Returns an error if the metadata command fails or the output cannot be
 /// parsed.
-pub(crate) fn get_remote_modified_time(
+pub fn get_remote_modified_time(
   url: &str,
   timeout: Duration,
 ) -> Result<i64, FetchError> {
@@ -78,10 +78,18 @@ pub(crate) fn get_remote_modified_time(
 ///
 /// Returns an error if the metadata command fails or the JSON output cannot be
 /// parsed.
-pub(crate) fn get_all_local_modified_times(
+pub fn get_all_local_modified_times(
   timeout: Duration,
   flake_dir_path: &Path,
 ) -> Result<HashMap<String, Option<i64>>, FetchError> {
+  if !PathBuf::from(flake_dir_path).join("flake.lock").exists() {
+    tracing::warn!(
+      "Flake.lock file does not exist in: {}, taking longer to rebuild flake \
+       graph",
+      flake_dir_path.display()
+    );
+  }
+
   let cmd = LOCAL_MODIFIED_TIME_CMD
     .replace("{PATH}", &flake_dir_path.display().to_string());
   let output = run_command_with_timeout(&cmd, timeout)?;

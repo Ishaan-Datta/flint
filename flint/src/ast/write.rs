@@ -214,13 +214,13 @@ pub enum GitFileStatus {
 ///
 /// Panics if `flake_path` has no parent directory.
 pub fn run_git_file_status(
-  flake_path: &Path,
+  file_path: &Path,
   file_name: &str,
   timeout: Duration,
 ) -> Result<GitFileStatus, WriteError> {
   let cmd = CHECK_GIT_REPO_CMD.replace(
     "{DIR_PATH}",
-    &flake_path
+    &file_path
       .parent()
       .expect("Should have parent")
       .display()
@@ -228,13 +228,12 @@ pub fn run_git_file_status(
   );
   let output = run_command_with_timeout(&cmd, timeout)?;
 
-  // TODO: replace "flake" with file name in the strings
   if output.status.success() {
-    tracing::debug!("Detected flake is in a git repository");
+    tracing::debug!("Detected file: {file_name} is in a git repository");
     let cmd = CHECK_UNSTAGED_CHANGES_CMD
       .replace(
         "{DIR_PATH}",
-        &flake_path
+        &file_path
           .parent()
           .expect("Should have parent")
           .display()
@@ -242,7 +241,7 @@ pub fn run_git_file_status(
       )
       .replace("{FILE_NAME}", file_name);
     let output = with_command_spinner!(
-      "Checking if the existing flake.nix file has unstaged changes",
+      "Checking if the existing file: {file_name} has unstaged changes",
       &cmd,
       timeout
     )?;
@@ -266,7 +265,7 @@ pub fn run_git_file_status(
     };
   }
 
-  tracing::debug!("Did not detect flake is in a git repository");
+  tracing::debug!("Did not detect file: {file_name} is in a git repository");
   Ok(GitFileStatus::NotRepo)
 }
 
@@ -329,7 +328,7 @@ pub(crate) fn handle_dirty_file_status(
 ///
 /// Returns a parse error if the flake cannot be parsed, the inputs attribute
 /// is missing or malformed, or incremental reparse fails.
-pub(crate) fn apply_flake_input_edits(
+pub fn apply_flake_input_edits(
   flake_file_content: &str,
   input_dep_edits: &HashMap<String, Vec<String>>,
 ) -> std::result::Result<String, TreesitterParseError> {

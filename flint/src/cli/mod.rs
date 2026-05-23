@@ -72,8 +72,8 @@ pub struct Cli {
   /// Considers "existing change" if the file has changes tracked by git that
   /// are not staged/commited
   #[arg(
-    short,
-    long = "override",
+    short = 'y',
+    long = "yes",
     default_value_t = false,
     global = true,
     env = "FLINT_OVERRIDE"
@@ -118,7 +118,7 @@ Examples:
 Examples:
   flint duplicates
   flint duplicates --fix
-  flint duplicates --fix --override
+  flint duplicates --fix --yes
   flint duplicates --fix --no-backup
 "
   )]

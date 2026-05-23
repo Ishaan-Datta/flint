@@ -41,10 +41,13 @@ pub fn format_age(secs: i64) -> String {
 pub fn print_summary_message(start: Instant) {
   let now = Local::now();
   let t24 = now.format("%H:%M:%S").to_string();
-  let duration = start.elapsed().as_secs();
-  let summary = format!("Finished at {t24} after {duration}s")
-    .bold()
-    .to_string();
+  let duration_ms = start.elapsed().as_millis() % 1000;
+  let duration_s = start.elapsed().as_secs();
+
+  let summary =
+    format!("Finished at {t24} after {duration_s}.{duration_ms:03}s")
+      .bold()
+      .to_string();
   tracing::info!("\n{summary}\n");
 }
 

@@ -1,11 +1,16 @@
-use std::{cmp, collections::HashMap, path::Path, time::Duration};
+use std::{
+  cmp,
+  collections::HashMap,
+  path::{Path, PathBuf},
+  time::Duration,
+};
 
 use crate::{
   command::with_command_spinner,
   errors::{CommandError, FetchError},
 };
 
-const DEPENDENCIES_CMD: &str = r#"nix flake metadata --json --recreate-lock-file --no-write-lock-file {PATH} \
+const DEPENDENCIES_CMD: &str = r#"nix flake metadata --json --no-write-lock-file {PATH} \
   | jq -e '.locks.nodes
         | map_values(
             (.inputs // {})
@@ -18,7 +23,7 @@ const DEPENDENCIES_CMD: &str = r#"nix flake metadata --json --recreate-lock-file
 "#;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct InputReplacement {
+pub struct InputReplacement {
   pub input_dependency:      String,
   pub old_dependency_target: String,
   pub new_dependency_target: String,
@@ -82,10 +87,18 @@ impl From<InputReplacement> for String {
 ///
 /// Returns an error if the metadata command fails, the JSON output cannot be
 /// parsed, or the flake inputs are missing or malformed.
-pub(crate) fn get_input_deps(
+pub fn get_input_deps(
   flake_dir_path: &Path,
   timeout: Duration,
 ) -> Result<HashMap<String, Vec<InputReplacement>>, FetchError> {
+  if !PathBuf::from(flake_dir_path).join("flake.lock").exists() {
+    tracing::warn!(
+      "Flake.lock file does not exist in: {}, taking longer to rebuild flake \
+       graph",
+      flake_dir_path.display()
+    );
+  }
+
   let cmd =
     DEPENDENCIES_CMD.replace("{PATH}", &flake_dir_path.display().to_string());
   let output = with_command_spinner!(
