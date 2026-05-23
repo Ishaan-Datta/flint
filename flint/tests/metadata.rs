@@ -84,18 +84,21 @@ const NO_DUPLICATE_DEPS_FLAKE_CONTENT: &str = r#"
 }
 "#;
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_input_urls_returns_github_url() -> Result<()> {
     assert_single_input_url("github", "github:nix-systems/default")
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_input_urls_returns_github_ref_url() -> Result<()> {
     assert_single_input_url("github-ref", "github:NixOS/nixpkgs/nixos-unstable")
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_input_urls_returns_gitlab_url() -> Result<()> {
@@ -105,6 +108,7 @@ fn get_input_urls_returns_gitlab_url() -> Result<()> {
     )
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_input_urls_returns_codeberg_url() -> Result<()> {
@@ -114,6 +118,7 @@ fn get_input_urls_returns_codeberg_url() -> Result<()> {
     )
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_input_urls_returns_sourcehut_url() -> Result<()> {
@@ -123,6 +128,7 @@ fn get_input_urls_returns_sourcehut_url() -> Result<()> {
     )
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_input_urls_returns_generic_git_url() -> Result<()> {
@@ -132,6 +138,7 @@ fn get_input_urls_returns_generic_git_url() -> Result<()> {
     )
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_input_urls_returns_tarball_url() -> Result<()> {
@@ -141,6 +148,7 @@ fn get_input_urls_returns_tarball_url() -> Result<()> {
     )
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_input_urls_returns_empty_map_for_empty_inputs_attrset() -> Result<()> {
@@ -171,6 +179,7 @@ fn get_input_urls_errors_for_invalid_flake_file() -> Result<()> {
     Ok(())
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_input_urls_errors_when_an_input_has_no_url() -> Result<()> {
@@ -210,6 +219,7 @@ fn get_input_urls_errors_when_flake_nix_is_missing() -> Result<()> {
     Ok(())
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_all_local_modified_times_returns_values_for_locked_inputs() -> Result<()>
@@ -236,6 +246,7 @@ fn get_all_local_modified_times_returns_values_for_locked_inputs() -> Result<()>
     Ok(())
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_all_local_modified_times_returns_empty_map_for_empty_root_inputs()
@@ -309,11 +320,13 @@ fn assert_remote_modified_time(name: &str, url: &str) -> Result<()> {
     Ok(())
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 fn get_remote_modified_time_supports_github() -> Result<()> {
     assert_remote_modified_time("github", "github:nix-systems/default")
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 fn get_remote_modified_time_supports_github_ref() -> Result<()> {
     assert_remote_modified_time(
@@ -322,6 +335,7 @@ fn get_remote_modified_time_supports_github_ref() -> Result<()> {
     )
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 fn get_remote_modified_time_supports_gitlab() -> Result<()> {
     assert_remote_modified_time(
@@ -330,6 +344,7 @@ fn get_remote_modified_time_supports_gitlab() -> Result<()> {
     )
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 fn get_remote_modified_time_supports_codeberg() -> Result<()> {
     assert_remote_modified_time(
@@ -338,6 +353,7 @@ fn get_remote_modified_time_supports_codeberg() -> Result<()> {
     )
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 fn get_remote_modified_time_supports_sourcehut() -> Result<()> {
     assert_remote_modified_time(
@@ -346,6 +362,7 @@ fn get_remote_modified_time_supports_sourcehut() -> Result<()> {
     )
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 fn get_remote_modified_time_supports_generic_git() -> Result<()> {
     assert_remote_modified_time(
@@ -354,6 +371,7 @@ fn get_remote_modified_time_supports_generic_git() -> Result<()> {
     )
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 fn get_remote_modified_time_supports_tarball() -> Result<()> {
     assert_remote_modified_time(
@@ -362,6 +380,7 @@ fn get_remote_modified_time_supports_tarball() -> Result<()> {
     )
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_flake_path_resolves_valid_git_tracked_local_flake_directory()
@@ -431,6 +450,7 @@ fn get_flake_path_errors_for_untracked_local_flake_directory() -> Result<()> {
     Ok(())
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_flake_path_accepts_trailing_slash_for_git_tracked_local_flake_directory()
@@ -530,6 +550,7 @@ fn get_flake_path_errors_when_input_path_points_to_file() -> Result<()> {
     Ok(())
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn get_input_deps_returns_empty_map_when_there_are_no_duplicate_dependencies()

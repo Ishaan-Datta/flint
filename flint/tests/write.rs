@@ -96,6 +96,7 @@ fn run_git_file_status_returns_dirty_when_file_has_unstaged_changes() {
 }
 
 // File system operation tests
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn writes_valid_flake_without_backup() -> Result<(), anyhow::Error> {
@@ -123,6 +124,7 @@ fn writes_valid_flake_without_backup() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn writes_valid_flake_and_creates_backup_when_requested()
@@ -225,6 +227,7 @@ fn rejects_invalid_flake_before_creating_backup() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[test_group::group(nix_sandbox_incompatible)]
 #[test]
 #[traced_test]
 fn overwrites_dirty_git_tracked_flake_when_override_is_true()

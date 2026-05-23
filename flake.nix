@@ -10,12 +10,21 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       flake-utils,
       fenix,
       ...
     }:
-    flake-utils.lib.eachDefaultSystem (
+    let
+      rev = self.shortRev or self.dirtyShortRev or "dirty";
+    in
+    {
+      overlays.default = final: _: {
+        flint = final.callPackage ./package.nix { inherit rev; };
+      };
+    }
+    // flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -25,10 +34,12 @@
           fenixPkgs.stable.rustc
           fenixPkgs.stable.cargo
           fenixPkgs.stable.clippy
-          fenixPkgs.stable.rustfmt
+          fenixPkgs.default.rustfmt
           fenixPkgs.stable.rust-src
           fenixPkgs.stable.rust-std
         ];
+
+        flint = pkgs.callPackage ./package.nix { inherit rev; };
 
         devShell = pkgs.mkShell {
           RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
@@ -39,11 +50,24 @@
             pkgs.lefthook
             pkgs.cargo-binstall
             pkgs.sccache
+            pkgs.cargo-nextest
+            pkgs.just
+            flint
           ];
+
+          shellHook = ''
+            lefthook install
+            just --list
+          '';
         };
       in
       {
         devShells.default = devShell;
+
+        packages = {
+          inherit flint;
+          default = flint;
+        };
       }
     );
 }

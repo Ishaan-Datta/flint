@@ -10,3 +10,7 @@ status-level = "fail"
 
 # Disable retries
 retries = 0
+
+[profile.nix]
+default-filter = 'all() - test(::nix_sandbox_incompatible::)'
+fail-fast      = true
