@@ -48,12 +48,12 @@ pub(crate) fn update_stale_flake_inputs(
         .collect::<Vec<String>>();
 
     if stale_inputs.is_empty() {
-        tracing::info!("> All inputs are up-to-date.");
+        tracing::info!("All inputs are up-to-date.");
         exit(0);
     }
 
     let start_time = std::time::Instant::now();
-    tracing::info!("> Auto-updating stale flake inputs");
+    tracing::info!("Auto-updating stale flake inputs");
 
     let flake_lock_file = flake_dir_path.join("flake.lock");
     if flake_lock_file.exists() && flake_lock_file.is_file() && !override_bool {

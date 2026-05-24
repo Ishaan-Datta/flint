@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, process::exit};
 
 use unicode_width::UnicodeWidthStr;
 use yansi::Paint;
@@ -13,16 +13,17 @@ use crate::metadata::InputReplacement;
 ///
 /// # Returns
 ///
-/// Returns `()` after emitting the summary to the log output.
+/// Exits the process with status 0 when there are no duplicate input
+/// dependencies.
 pub(crate) fn print_duplicates_summary(
     input_deps: &HashMap<String, Vec<InputReplacement>>,
 ) {
     if input_deps.is_empty() {
-        tracing::info!("> No duplicate dependencies found.");
-        return;
+        tracing::info!("No duplicate dependencies found.");
+        exit(1);
     }
 
-    tracing::info!("> Duplicate transitive dependencies found: ");
+    tracing::info!("Duplicate transitive dependencies found: ");
 
     let mut inputs: Vec<&String> = input_deps.keys().collect();
     inputs.sort_unstable();

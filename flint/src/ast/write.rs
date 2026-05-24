@@ -116,7 +116,7 @@ pub fn rewrite_flake_inputs(
             timeout,
         )
         .unwrap_or_else(|e| {
-            tracing::error!("Failed to perform flake file operations: {e}");
+            tracing::error!("\nFailed to perform flake file operations: {e}");
             exit(1);
         });
     }
@@ -171,18 +171,20 @@ pub fn write_new_flake_file(
         )));
     }
 
-    tracing::info!("> Flake edits were successfully validated");
+    tracing::info!("Flake edits were successfully validated");
 
     let original_flake_path = new_flake_dir_path.join("flake.nix");
 
     if backup {
         let old_flake_backup_path = new_flake_dir_path.join("flake.nix.bak");
-        fs::rename(&original_flake_path, &old_flake_backup_path)?;
+        fs::copy(&original_flake_path, &old_flake_backup_path)?;
         tracing::info!(
-            "Made backup of original flake at: {}",
+            "\nMade backup of original flake at: {}",
             old_flake_backup_path.display()
         );
     }
+
+    tracing::info!("");
 
     if !override_bool {
         let status =
@@ -190,7 +192,12 @@ pub fn write_new_flake_file(
         handle_dirty_file_status(status, &original_flake_path, quiet)?;
     }
 
-    fs::rename(temp_flake_path, &original_flake_path)?;
+    // Copy the new flake to the current directory so the temp file and
+    // destination are on the same mount, and final replacement can be an
+    // atomic rename
+    let new_temp_flake_path = new_flake_dir_path.join("temp.nix");
+    fs::copy(&temp_flake_path, &new_temp_flake_path)?;
+    fs::rename(&new_temp_flake_path, &original_flake_path)?;
     tracing::info!(
         "Successfully wrote new flake to path: {}",
         original_flake_path.display()

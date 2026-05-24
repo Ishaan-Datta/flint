@@ -179,7 +179,7 @@ pub fn main() -> Result<()> {
 
     let flake_dir_path = match get_flake_path(&cli.path, timeout) {
         Ok(val) => {
-            tracing::info!("> Resolved flake path to: {}", val.display());
+            tracing::info!("Resolved flake path to: {}", val.display());
             val
         },
         Err(e) => {

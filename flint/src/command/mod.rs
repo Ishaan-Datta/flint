@@ -132,7 +132,7 @@ macro_rules! with_command_spinner {
         let header_span = tracing::info_span!("run_command");
 
         header_span.pb_set_style(
-            &ProgressStyle::with_template("{spinner} {msg}")
+            &ProgressStyle::with_template("{spinner} {msg} ({elapsed})")
                 .expect("valid progress template")
                 .tick_chars("⠋⠙⠹⠸⢰⣠⣄⡆⡇⡏⠏ "),
         );

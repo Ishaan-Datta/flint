@@ -129,7 +129,7 @@ pub fn check_flake_inputs(
 ) {
     let start_time = std::time::Instant::now();
 
-    tracing::info!("> Checking flake inputs for updates");
+    tracing::info!("Checking flake inputs for updates");
     let current_times = get_all_local_modified_times(timeout, flake_dir_path)
         .unwrap_or_else(|e| {
             tracing::error!("Failed to get input urls: {e}");
