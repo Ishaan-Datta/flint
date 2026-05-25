@@ -1,16 +1,12 @@
+mod verbosity;
 use std::{process::exit, time::Duration};
 
 use anstyle::Style;
 use clap::{ArgAction, Parser, Subcommand, ValueHint, builder::Styles};
-use clap_verbosity_flag::{InfoLevel, tracing::LevelFilter};
 use color_eyre::Result;
 use tracing_indicatif::IndicatifLayer;
-use tracing_subscriber::{
-    EnvFilter,
-    fmt,
-    layer::SubscriberExt,
-    util::SubscriberInitExt,
-};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
+use verbosity::*;
 
 use crate::{
     ast::write::rewrite_flake_inputs,
@@ -45,7 +41,7 @@ const fn make_style() -> Styles {
 pub struct Cli {
     /// Path to the directory containing flake.nix
     ///
-    /// May be relative or absolute, ex. "." or ``~/flake_path``
+    /// May be relative or absolute, ex. "." or "~/flake_path"
     /// Must be a directory, not a .nix file.
     #[arg(
         short, long,
@@ -70,7 +66,7 @@ pub struct Cli {
     /// existing changes
     ///
     /// Considers "existing change" if the file has changes tracked by git that
-    /// are not staged/commited
+    /// are not staged/committed
     #[arg(
         short = 'y',
         long = "yes",
@@ -82,7 +78,7 @@ pub struct Cli {
     #[command(subcommand)]
     command:       Commands,
     #[command(flatten)]
-    pub verbosity: clap_verbosity_flag::Verbosity<InfoLevel>,
+    pub verbosity: Verbosity,
 }
 
 #[derive(Debug, Subcommand)]
@@ -92,9 +88,12 @@ enum Commands {
         after_help = "\
 Examples:
   flint stale
+  flint -q stale
   flint stale --update-threshold 604800
   flint stale --auto-update
+  flint stale --auto-update --yes
   FLINT_UPDATE_THRESHOLD=604800 flint stale
+  FLINT_LOG_LEVEL=off flint stale
 "
     )]
     /// Check flake inputs for updates
@@ -117,9 +116,11 @@ Examples:
         after_help = "\
 Examples:
   flint duplicates
+  flint -q duplicates
   flint duplicates --fix
   flint duplicates --fix --yes
   flint duplicates --fix --no-backup
+  FLINT_LOG_LEVEL=off flint duplicates
 "
     )]
     /// Check flake inputs for redundant transitive dependencies
@@ -127,7 +128,7 @@ Examples:
     Duplicates {
         /// Apply flake input consolidation
         ///
-        /// Uses Treesitter AST parsing to inserting
+        /// Uses Tree-sitter AST parsing to insert
         /// `inputs.<transitive_input>.follows = "<transitive_input>"` to
         /// de-dupe extra input instances
         #[arg(short, long, default_value_t = false)]
@@ -142,21 +143,8 @@ Examples:
 pub fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let mut filter =
-        EnvFilter::try_from_env("FLINT_LOG_LEVEL").unwrap_or_else(|_| {
-            EnvFilter::from(cli.verbosity.tracing_level_filter().to_string())
-        });
-
-    // Work-around since clap CLI treats -q/--quiet as a level decrement instead
-    // of a silence
-    let quiet = if cli.verbosity.is_present()
-        && cli.verbosity.tracing_level_filter() <= LevelFilter::WARN
-    {
-        filter = EnvFilter::new("off");
-        true
-    } else {
-        false
-    };
+    let logging = cli.verbosity.resolve()?;
+    let quiet = logging.quiet;
 
     let indicatif_layer = IndicatifLayer::new();
     let format = fmt::layer()
@@ -172,7 +160,7 @@ pub fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(indicatif_layer)
         .with(format)
-        .with(filter)
+        .with(logging.filter)
         .init();
 
     let timeout = Duration::from_millis(cli.timeout);

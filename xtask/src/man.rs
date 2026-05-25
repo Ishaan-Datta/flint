@@ -61,9 +61,15 @@ pub fn generate(out_dir: &str) -> Result<(), String> {
             "Stale input threshold in seconds for the stale subcommand.",
         ),
         (
+            "FLINT_OVERRIDE",
+            "Default value for --yes. When enabled, write operations do not \
+             prompt before overwriting existing unstaged changes.",
+        ),
+        (
             "FLINT_LOG_LEVEL",
-            "Tracing filter level (e.g., flint=trace). Overrides verbosity \
-             flags.",
+            "Tracing filter used when no CLI logging flag is present. Accepts \
+             levels such as error, warn, info, debug, trace, and off. Bare \
+             off also enables quiet/check mode.",
         ),
     ];
     let mut sect = Roff::new();
@@ -105,7 +111,15 @@ pub fn generate(out_dir: &str) -> Result<(), String> {
             "Use a custom stale threshold (7 days)",
             "flint stale --update-threshold 604800",
         ),
+        (
+            "Set the stale threshold with an env var",
+            "FLINT_UPDATE_THRESHOLD=604800 flint stale",
+        ),
         ("Auto-update stale inputs", "flint stale --auto-update"),
+        (
+            "Auto-update stale inputs without prompts",
+            "flint stale --auto-update --yes",
+        ),
         (
             "Check a specific flake directory",
             "flint --path ~/projects/myflake stale",
@@ -117,8 +131,31 @@ pub fn generate(out_dir: &str) -> Result<(), String> {
         ("Detect duplicate inputs", "flint duplicates"),
         ("Fix duplicates and keep a backup", "flint duplicates --fix"),
         (
-            "Fix duplicates without backup and override",
-            "flint duplicates --fix --no-backup --override",
+            "Fix duplicates without backup",
+            "flint duplicates --fix --no-backup",
+        ),
+        (
+            "Fix duplicates without backup and skip prompts",
+            "flint duplicates --fix --no-backup --yes",
+        ),
+        ("Check stale inputs in quiet mode", "flint -q stale"),
+        (
+            "Check duplicate inputs in quiet mode",
+            "flint -q duplicates",
+        ),
+        (
+            "Enable quiet/check mode with an environment variable",
+            "FLINT_LOG_LEVEL=off flint stale",
+        ),
+        ("Enable debug logging", "flint -v stale"),
+        ("Enable trace logging", "flint -vv stale"),
+        (
+            "Enable debug logging with an environment variable",
+            "FLINT_LOG_LEVEL=debug flint stale",
+        ),
+        (
+            "Fix duplicates non-interactively with an environment variable",
+            "FLINT_OVERRIDE=true flint duplicates --fix",
         ),
     ];
     let mut sect = Roff::new();
