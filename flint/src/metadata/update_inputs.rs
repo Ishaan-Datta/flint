@@ -37,6 +37,8 @@ pub(crate) fn update_stale_flake_inputs(
     override_bool: bool,
     flake_dir_path: &Path,
 ) -> Result<(), WriteError> {
+    tracing::info!("");
+
     let stale_inputs = inputs
         .iter()
         .filter_map(|input| {
@@ -71,6 +73,7 @@ pub(crate) fn update_stale_flake_inputs(
     print_summary_message(start_time);
 
     if output.status.success() {
+        tracing::info!("\nSuccessfully updated stale flake inputs\n");
         Ok(())
     } else {
         let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();

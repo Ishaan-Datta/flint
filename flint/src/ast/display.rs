@@ -18,6 +18,8 @@ use crate::metadata::InputReplacement;
 pub(crate) fn print_duplicates_summary(
     input_deps: &HashMap<String, Vec<InputReplacement>>,
 ) {
+    tracing::info!("");
+
     if input_deps.is_empty() {
         tracing::info!("No duplicate dependencies found.");
         exit(1);

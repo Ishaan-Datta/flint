@@ -132,8 +132,9 @@ Examples:
         /// de-dupe extra input instances
         #[arg(short, long, default_value_t = false)]
         fix:    bool,
-        /// Rename the original flake file to `flake.nix.bak` as a backup
-        #[arg(short, long, default_value_t = true, action = ArgAction::Set)]
+        /// Disable copying the original flake file contents to `flake.nix.bak`
+        /// as a backup
+        #[arg(long = "no-backup", default_value_t = true, action = ArgAction::SetFalse)]
         backup: bool,
     },
 }

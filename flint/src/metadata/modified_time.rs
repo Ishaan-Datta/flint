@@ -189,6 +189,8 @@ pub fn check_flake_inputs(
 
     print_summary_message(start_time);
 
+    tracing::info!("");
+
     for input in inputs.clone() {
         if last_status
             .clone()
@@ -220,8 +222,6 @@ pub fn check_flake_inputs(
 
         tracing::info!("{line}");
     }
-
-    tracing::info!("");
 
     if auto_update
         && let Err(e) = update_stale_flake_inputs(

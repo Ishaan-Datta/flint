@@ -199,7 +199,7 @@ pub fn write_new_flake_file(
     fs::copy(&temp_flake_path, &new_temp_flake_path)?;
     fs::rename(&new_temp_flake_path, &original_flake_path)?;
     tracing::info!(
-        "Successfully wrote new flake to path: {}",
+        "Successfully wrote new flake to path: {}\n",
         original_flake_path.display()
     );
     Ok(())
@@ -320,7 +320,7 @@ pub(crate) fn handle_dirty_file_status(
     }
 
     let confirmation = inquire::Confirm::new(&format!(
-        "The flake at path: {} has changes that are not commited in git, \
+        "The file at path: {} has changes that are not commited in git, \
          override the changes?",
         flake_path.display()
     ))
@@ -331,6 +331,7 @@ pub(crate) fn handle_dirty_file_status(
         return Err(WriteError::AbortUserInput);
     }
 
+    tracing::info!("");
     Ok(())
 }
 
