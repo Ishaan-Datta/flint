@@ -52,6 +52,7 @@
             pkgs.sccache
             pkgs.cargo-nextest
             pkgs.just
+            pkgs.vhs
             flint
           ];
 

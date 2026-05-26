@@ -31,6 +31,7 @@ use crate::{
     modified_time::print_summary_message,
 };
 
+// NB: add `sleep 3 && ` for below cmd during demo
 const VALIDATE_FILE_NIX_CMD: &str =
     r"nix flake metadata --no-write-lock-file {PATH}";
 const CHECK_GIT_REPO_CMD: &str = r"git -C {DIR_PATH} rev-parse --show-toplevel";
@@ -171,7 +172,7 @@ pub fn write_new_flake_file(
         )));
     }
 
-    tracing::info!("Flake edits were successfully validated");
+    tracing::info!("\nFlake edits were successfully validated");
 
     let original_flake_path = new_flake_dir_path.join("flake.nix");
 
@@ -198,8 +199,10 @@ pub fn write_new_flake_file(
     let new_temp_flake_path = new_flake_dir_path.join("temp.nix");
     fs::copy(&temp_flake_path, &new_temp_flake_path)?;
     fs::rename(&new_temp_flake_path, &original_flake_path)?;
+
+    // NB: add newline after this for cmd demo
     tracing::info!(
-        "Successfully wrote new flake to path: {}\n",
+        "Successfully wrote new flake to path: {}",
         original_flake_path.display()
     );
     Ok(())
@@ -331,7 +334,6 @@ pub(crate) fn handle_dirty_file_status(
         return Err(WriteError::AbortUserInput);
     }
 
-    tracing::info!("");
     Ok(())
 }
 

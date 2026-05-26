@@ -18,14 +18,10 @@ use crate::metadata::InputReplacement;
 pub(crate) fn print_duplicates_summary(
     input_deps: &HashMap<String, Vec<InputReplacement>>,
 ) {
-    tracing::info!("");
-
     if input_deps.is_empty() {
-        tracing::info!("No duplicate dependencies found.");
-        exit(1);
+        tracing::info!("No duplicate dependencies found. \n");
+        exit(0);
     }
-
-    tracing::info!("Duplicate transitive dependencies found: ");
 
     let mut inputs: Vec<&String> = input_deps.keys().collect();
     inputs.sort_unstable();
@@ -40,11 +36,12 @@ pub(crate) fn print_duplicates_summary(
         .unwrap_or(0)
         + 4;
 
-    tracing::info!("");
-
+    let mut sections = Vec::new();
     for input in inputs {
+        let mut lines = Vec::new();
+
         let header = input.bold();
-        tracing::info!("{header}");
+        lines.push(format!("{header}"));
 
         let mut replacements =
             input_deps.get(input).expect("Checked this").clone();
@@ -53,14 +50,23 @@ pub(crate) fn print_duplicates_summary(
         for replacement in replacements {
             let input_dependency_entry =
                 format!("[ {} ]", replacement.input_dependency);
+
             let line = format!(
                 "{input_dependency_entry:<input_dep_width$} -> [ {} ]",
                 replacement.old_dependency_target.yellow()
             );
 
-            tracing::info!("{line}");
+            lines.push(line);
         }
 
-        tracing::info!("");
+        sections.push(lines.join("\n"));
     }
+
+    tracing::info!(
+        "Duplicate transitive dependencies found:\n\n{}",
+        sections.join("\n\n")
+    );
+
+    // NB: add for cmd demo
+    // tracing::info!("");
 }

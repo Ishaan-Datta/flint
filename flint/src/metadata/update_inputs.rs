@@ -37,8 +37,6 @@ pub(crate) fn update_stale_flake_inputs(
     override_bool: bool,
     flake_dir_path: &Path,
 ) -> Result<(), WriteError> {
-    tracing::info!("");
-
     let stale_inputs = inputs
         .iter()
         .filter_map(|input| {
@@ -50,12 +48,12 @@ pub(crate) fn update_stale_flake_inputs(
         .collect::<Vec<String>>();
 
     if stale_inputs.is_empty() {
-        tracing::info!("All inputs are up-to-date.");
+        tracing::info!("\nAll inputs are up-to-date.");
         exit(0);
     }
 
     let start_time = std::time::Instant::now();
-    tracing::info!("Auto-updating stale flake inputs");
+    tracing::info!("\nAuto-updating stale flake inputs");
 
     let flake_lock_file = flake_dir_path.join("flake.lock");
     if flake_lock_file.exists() && flake_lock_file.is_file() && !override_bool {
@@ -73,7 +71,19 @@ pub(crate) fn update_stale_flake_inputs(
     print_summary_message(start_time);
 
     if output.status.success() {
-        tracing::info!("\nSuccessfully updated stale flake inputs\n");
+        tracing::info!("Successfully updated stale flake inputs:");
+
+        for updated_input in stale_inputs {
+            let line = format!(
+                "[{}] {updated_input}",
+                InputStatus::Fresh.painted_char()
+            );
+            tracing::info!("{line}");
+        }
+
+        // NB: add for cmd demo
+        // tracing::info!("");
+
         Ok(())
     } else {
         let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();

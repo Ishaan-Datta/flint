@@ -5,6 +5,7 @@ use crate::{
     errors::{CommandError, FetchError},
 };
 
+// NB: add `sleep 1.5 && ` for below cmd during demo
 const PATH_CMD: &str = r#"nix flake metadata --json --no-write-lock-file {PATH} \
   | jq -er '
       (.resolved.url // error("nix flake metadata returned null for .resolved.url")) as $url

@@ -25,7 +25,9 @@ use crate::{
     },
 };
 
+// NB: add `sleep 2 &&` for below cmd during demo
 const REMOTE_MODIFIED_TIME_CMD: &str = r"nix --refresh flake metadata {URL} --json --no-write-lock-file | jq -er '.lastModified'";
+// NB: add `sleep 0.5 &&` for below cmd during demo
 const LOCAL_MODIFIED_TIME_CMD: &str = r"nix flake metadata --json --no-write-lock-file {PATH} | jq -er '.locks.nodes | map_values(.locked.lastModified)'";
 
 /// Fetch the remote modified time for a single flake URL.
@@ -132,7 +134,7 @@ pub fn check_flake_inputs(
     tracing::info!("Checking flake inputs for updates");
     let current_times = get_all_local_modified_times(timeout, flake_dir_path)
         .unwrap_or_else(|e| {
-            tracing::error!("Failed to get input urls: {e}");
+            tracing::error!("Failed to parse local modified times: {e}");
             exit(1);
         });
 
@@ -172,7 +174,7 @@ pub fn check_flake_inputs(
     }
 
     if quiet {
-        return;
+        exit(0);
     }
 
     inputs.sort_by(|a, b| {
@@ -188,8 +190,6 @@ pub fn check_flake_inputs(
     let mut last_status = None::<InputStatus>;
 
     print_summary_message(start_time);
-
-    tracing::info!("");
 
     for input in inputs.clone() {
         if last_status
@@ -232,7 +232,7 @@ pub fn check_flake_inputs(
             flake_dir_path,
         )
     {
-        tracing::error!("Failed to auto-update stale flake inputs: {e}");
+        tracing::error!("\nFailed to auto-update stale flake inputs: {e}");
         exit(1);
     }
 }
