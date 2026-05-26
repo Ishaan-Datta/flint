@@ -1,0 +1,49 @@
+name: "Test FLint"
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "xtask/Cargo.toml"
+      - "crates/**"
+      - "xtask/src/**"
+      - ".cargo/**"
+      - ".github/workflows/build.yaml"
+  push:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "xtask/Cargo.toml"
+      - "crates/**"
+      - "xtask/src/**"
+      - ".cargo/**"
+      - ".github/workflows/build.yaml"
+
+jobs:
+  test-linux:
+    name: "Test FLint on Linux"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: cachix/install-nix-action@master
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          nix_path: nixpkgs=channel:nixos-unstable
+      - uses: actions/checkout@v6
+      - name: Run Tests
+        run: |
+          set -x
+          nix develop --command just test
+  build-darwin:
+    name: "Test FLint on Darwin"
+    runs-on: macos-latest
+    steps:
+      - uses: cachix/install-nix-action@master
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v6
+      - name: Run Tests
+        run: |
+          set -x
+          nix develop --command just test

@@ -3,6 +3,8 @@
 default:
     just --list
 
+check: cargo-check fmt-check taplo-check
+
 # Check for clippy lint errors
 cargo-check:
     RUSTFLAGS="-Dwarnings" cargo check

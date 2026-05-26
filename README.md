@@ -86,7 +86,7 @@ Flint also installs generated man pages and shell completions. Once the package 
 
 For trying the utility without installing:
 ```bash
-nix run github:Ishaan-Datta/flint#default
+nix run github:Ishaan-Datta/flint
 ```
 
 ## Usage
