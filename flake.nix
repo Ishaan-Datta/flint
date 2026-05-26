@@ -53,6 +53,7 @@
             pkgs.cargo-nextest
             pkgs.just
             pkgs.vhs
+            pkgs.taplo
             flint
           ];
 
