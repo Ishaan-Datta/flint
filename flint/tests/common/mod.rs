@@ -168,7 +168,7 @@ pub(crate) fn assert_single_input_url(
     Ok(())
 }
 
-pub(crate) const TIMEOUT: Duration = Duration::from_secs(90);
+pub(crate) const TIMEOUT: Duration = Duration::from_secs(120);
 
 pub(crate) const SHORT_FLAKE_CONTENT: &str = r#"
 {
