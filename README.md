@@ -2,7 +2,7 @@
   <h1 id="header">FLint</h1>
   <h3>Flake Lock lint</h3>
 
-  <a href="https://github.com/Ishaan-Datta/flint/actions"> <img src="https://github.com/Ishaan-Datta/flint/actions/workflows/build/badge.svg" alt="Build Status"></a>
+  <a href="https://github.com/Ishaan-Datta/flint/actions"> <img src="https://github.com/Ishaan-Datta/flint/actions/workflows/build.yml/badge.svg" alt="Build Status"></a>
   <a href="https://github.com/Ishaan-Datta/flint/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Ishaan-Datta/flint?label=License" alt="License"/>
   <a href="https://deps.rs/repo/github/Ishaan-Datta/flint"><img src="https://deps.rs/repo/github/Ishaan-Datta/flint/status.svg" alt="Dependency Status"/>
   <br/>
