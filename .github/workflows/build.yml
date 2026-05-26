@@ -3,23 +3,8 @@ name: "Build FLint"
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "xtask/Cargo.toml"
-      - "crates/**"
-      - "xtask/src/**"
-      - ".cargo/**"
-      - ".github/workflows/build.yaml"
+    branches: ["main"]
   push:
-    paths:
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "xtask/Cargo.toml"
-      - "crates/**"
-      - "xtask/src/**"
-      - ".cargo/**"
-      - ".github/workflows/build.yaml"
 
 jobs:
   build-linux:

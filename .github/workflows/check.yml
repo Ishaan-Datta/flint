@@ -4,25 +4,7 @@ on:
   workflow_dispatch:
   pull_request:
     branches: ["main"]
-    paths:
-      - "Justfile"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "xtask/Cargo.toml"
-      - "crates/**"
-      - "xtask/src/**"
-      - ".cargo/**"
-      - ".github/workflows/check.yaml"
   push:
-    paths:
-      - "Justfile"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "xtask/Cargo.toml"
-      - "crates/**"
-      - "xtask/src/**"
-      - ".cargo/**"
-      - ".github/workflows/check.yaml"
 
 jobs:
   treewide-checks:
@@ -35,4 +17,4 @@ jobs:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Checking Code (format, lints, etc.)
         run: |
-          nix develop --command just check || exit 1
+          nix develop --command just check
