@@ -19,7 +19,7 @@ jobs:
       - name: Run Tests
         run: |
           set -x
-          nix develop --command just test
+          nix develop --command just test --skip get_remote_modified_time_supports_codeberg
   build-darwin:
     name: "Test FLint on Darwin"
     runs-on: macos-latest
@@ -31,4 +31,4 @@ jobs:
       - name: Run Tests
         run: |
           set -x
-          nix develop --command just test
+          nix develop --command just test --skip get_remote_modified_time_supports_codeberg

@@ -28,7 +28,7 @@ taplo-check:
 
 # Shortcut for testing with cargo nextest
 test *args:
-    cargo nextest run {{ args }}
+    cargo nextest run -- {{ args }}
 
 # Shortcut for running flint on an example flake.nix
 [working-directory('flint/tests/common')]
