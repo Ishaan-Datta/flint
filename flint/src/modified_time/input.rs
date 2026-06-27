@@ -1,5 +1,6 @@
 use std::{cmp, time::Duration};
 
+use serde::{Deserialize, Serialize};
 use yansi::{Paint, Painted};
 
 use crate::{
@@ -7,10 +8,30 @@ use crate::{
     modified_time::format_age,
 };
 
+/// Remote flake input identified by name and URL.
+///
+/// This type is used as the cache key for remote modified-time results.
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
+pub struct RemoteInput {
+    /// Name of the flake input.
+    pub input_name: String,
+
+    /// URL used to fetch remote metadata for the input.
+    pub input_url: String,
+}
+
+/// Status of a flake input after comparing local and remote modified times.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum InputStatus {
+pub(crate) enum InputStatus {
+    /// The input is within the configured staleness threshold.
     Fresh,
+
+    /// The remote input is newer than the local lock-file entry by more than
+    /// the configured threshold, or no local timestamp was available.
     Stale,
+
+    /// The input could not be compared because fetching or timestamp comparison
+    /// failed.
     Error(StatusError),
 }
 
@@ -21,7 +42,7 @@ impl PartialOrd for InputStatus {
 }
 
 impl cmp::Ord for InputStatus {
-    /// Ordered as: Stale -> Error -> Fresh
+    /// Sort statuses in display priority order: stale, error, then fresh.
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         match (self, other) {
             // Same variants are equal
@@ -45,7 +66,7 @@ impl InputStatus {
     ///
     /// # Returns
     ///
-    /// Returns the marker as a static string.
+    /// Returns `"✔"` for fresh, `"!"` for stale, and `"✘"` for errored inputs.
     pub(crate) const fn plain_char(&self) -> &'static str {
         match self {
             Self::Fresh => "✔",
@@ -68,76 +89,100 @@ impl InputStatus {
     }
 }
 
+/// Comparison result for a single flake input.
 #[derive(Debug, Clone)]
 pub struct Input {
-    pub name:    String,
-    pub status:  InputStatus,
-    local_time:  Option<i64>,
-    remote_time: Result<i64, FetchError>,
+    /// Input name used for display and lookup.
+    pub name: String,
+
+    /// Freshness status after comparing local and remote timestamps.
+    pub(crate) status: InputStatus,
+
+    /// Difference between remote and local timestamps in seconds.
+    ///
+    /// Present only when both timestamps were available and comparison
+    /// succeeded.
+    difference: Option<i64>,
 }
 
 impl Input {
-    /// Create a new input record with a default `Fresh` status.
+    /// Create an input comparison result from local and remote timestamps.
+    ///
+    /// The resulting status is:
+    ///
+    /// * `Error` when the remote fetch failed.
+    /// * `Stale` when no local timestamp is available.
+    /// * `Error` when the remote timestamp is older than the local timestamp.
+    /// * `Stale` when the remote timestamp is newer than the local timestamp by
+    ///   more than `threshold`.
+    /// * `Fresh` otherwise.
     ///
     /// # Arguments
     ///
-    /// * `input_string` - The display name for the input.
-    /// * `local_time` - The last local update time, if available.
-    /// * `remote_time` - The fetched remote update time or a fetch error.
+    /// * `input_name` - Name of the flake input.
+    /// * `local_time` - Local locked `lastModified` timestamp, if available.
+    /// * `remote_time` - Remote fetch result containing either a timestamp or a
+    ///   fetch error.
+    /// * `threshold` - Maximum allowed timestamp difference before the input is
+    ///   considered stale.
     ///
     /// # Returns
     ///
-    /// Returns the initialized `Input`.
+    /// Returns the computed `Input` status record.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `threshold.as_secs()` cannot be converted into `i64`.
     pub(crate) fn new(
-        input_string: &str,
-        local_time: Option<&i64>,
-        remote_time: &Result<i64, FetchError>,
+        input_name: &str,
+        local_time: Option<&u64>,
+        remote_time: &Result<u64, FetchError>,
+        threshold: Duration,
     ) -> Self {
-        Self {
-            name:        input_string.to_string(),
-            status:      InputStatus::Fresh,
-            local_time:  local_time.copied(),
-            remote_time: remote_time.clone(),
-        }
-    }
-
-    /// Compute and update the input status using the time threshold.
-    ///
-    /// # Arguments
-    ///
-    /// * `threshold` - The maximum allowed age before the input is considered
-    ///   stale.
-    pub(crate) fn get_status(&mut self, threshold: Duration) {
-        match &self.remote_time {
+        let (status, difference) = match remote_time {
             Err(e) => {
-                tracing::debug!("Failed to fetch input {}: {e}", self.name);
-                self.status =
-                    InputStatus::Error(StatusError::NotFetched(e.to_string()));
+                tracing::debug!("Failed to fetch input {}: {e}", input_name);
+                (
+                    InputStatus::Error(StatusError::NotFetched(e.to_string())),
+                    None,
+                )
             },
             Ok(remote_time) => {
-                match self.local_time {
-                    None => self.status = InputStatus::Stale,
+                match local_time {
+                    None => (InputStatus::Stale, None),
                     Some(local_time) => {
-                        if local_time > *remote_time {
-                            self.status = InputStatus::Error(StatusError::Less);
-                        } else if remote_time - local_time
-                            > threshold.as_secs().cast_signed()
+                        let difference =
+                            *remote_time as i64 - *local_time as i64;
+
+                        if difference < 0 {
+                            (InputStatus::Error(StatusError::Less), None)
+                        } else if difference
+                            > threshold.as_secs().try_into().expect(
+                                "Should be able to convert threshold into i64",
+                            )
                         {
-                            self.status = InputStatus::Stale;
+                            (InputStatus::Stale, Some(difference))
                         } else {
-                            self.status = InputStatus::Fresh;
+                            (InputStatus::Fresh, Some(difference))
                         }
                     },
                 }
             },
+        };
+
+        Self {
+            name: input_name.to_string(),
+            status,
+            difference,
         }
     }
 
-    /// Build optional human-readable info based on the current status.
+    /// Build optional human-readable information for the current status.
     ///
     /// # Returns
     ///
-    /// Returns `None` for fresh inputs, or a status-specific message otherwise.
+    /// Returns `None` for fresh inputs, the elapsed time since last update for
+    /// stale inputs, or the error message for errored inputs.
     pub(crate) fn get_additional_info(&self) -> Option<String> {
         match &self.status {
             InputStatus::Fresh => None,
@@ -151,18 +196,17 @@ impl Input {
         }
     }
 
-    /// Format the time difference between remote and local updates.
+    /// Format the timestamp difference between remote and local updates.
     ///
     /// # Returns
     ///
-    /// Returns the formatted time difference, or "Unknown" when times are
-    /// missing.
+    /// Returns the formatted difference, or `"Unknown"` when the difference is
+    /// unavailable.
     pub(crate) fn get_human_readable_time_diff(&self) -> String {
-        match (self.local_time, self.remote_time.clone()) {
-            (Some(local_time), Ok(remote_time)) => {
-                format_age(remote_time - local_time)
-            },
-            _ => "Unknown".to_string(),
+        if let Some(difference) = self.difference {
+            format_age(difference)
+        } else {
+            "Unknown".to_string()
         }
     }
 }
