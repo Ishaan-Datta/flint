@@ -38,6 +38,7 @@ output and safe defaults.
 - **AST-based fixes**: rewrite `flake.nix` with Tree-sitter syntax-aware manipulation instead of plain string replacement.
 - **Safer writes**: fixed files are validated before replacement, can be backed up to `flake.nix.bak`, and are checked for unstaged git changes before being overwritten.
 - **Scriptable output**: supports quiet mode for check-style usage and `--yes` for non-interactive write operations.
+- **Remote metadata cache**: cache stale-input fetch results to avoid repeatedly refreshing every remote input, with controls for cache location and expiry.
 
 ### Installation
 
@@ -105,6 +106,20 @@ flint [OPTIONS] <COMMAND>
 | `-v, --verbose...`   | `FLINT_LOG_LEVEL`    | `info`  | Increase tracing verbosity.                             |
 | `-q, --quiet`        | `FLINT_LOG_LEVEL`    | `false` | Enable quiet/check mode and suppress normal output.     |
 
+### Global environment variables
+
+- `FLINT_FLAKE_PATH`: default path for `--path`.
+- `FLINT_CMD_TIMEOUT`: default timeout for external commands, in milliseconds.
+- `FLINT_UPDATE_THRESHOLD`: default stale-input threshold, in seconds.
+- `FLINT_CACHE_DIR`: directory used for the stale-input cache file. Defaults to `$XDG_CACHE_HOME/flint` when `XDG_CACHE_HOME` is set, otherwise `$HOME/.cache/flint`.
+- `FLINT_CACHE_EXPIRY`: maximum stale-input cache age, in seconds. Use `0` to bypass the cache and fetch remote metadata on every stale check.
+- `FLINT_LOG_LEVEL`: tracing filter used when no CLI logging flag is present. Bare `off` also enables quiet/check mode.
+- `FLINT_OVERRIDE`: default choice for skipping interactive prompts
+
+`--timeout` controls how long external commands may run. It does not control the
+stale-input cache. To force `flint stale` to pull remote metadata instead of
+using cached results, use `flint stale --cache-expiry 0`.
+
 ### Logging Verbosity and Quiet Mode
 
 `flint` logs at `info` by default. `-v` enables debug logging, and `-vv`
@@ -155,14 +170,6 @@ Only a bare `FLINT_LOG_LEVEL=off` enables quiet/check mode through the
 environment. Values like `warn` and `error` reduce logging but do not enable
 quiet/check mode.
 
-### Global environment variables
-
-- `FLINT_FLAKE_PATH`: default path for `--path`.
-- `FLINT_CMD_TIMEOUT`: default timeout for external commands, in milliseconds.
-- `FLINT_UPDATE_THRESHOLD`: default stale-input threshold, in seconds.
-- `FLINT_LOG_LEVEL`: tracing filter used when no CLI logging flag is present. Bare `off` also enables quiet/check mode.
-- `FLINT_OVERRIDE`: default choice for skipping interactive prompts
-
 ### Commands
 
 #### `flint stale`
@@ -185,9 +192,29 @@ By default, `flint stale` classifies an input as stale when the remote
 `lastModified` timestamp is more than 14 days newer than the timestamp recorded
 in `flake.lock`.
 
+`flint stale` caches remote fetch results so repeated checks do not have to
+refresh every remote input each time. By default, the cache expires after 86400
+seconds (1 day).
+
+To force fresh remote metadata and bypass the cache:
+```bash
+flint stale --cache-expiry 0
+```
+
 To update stale inputs automatically:
 ```bash
 flint stale --auto-update
+```
+
+The same behavior can be configured with an environment variable:
+```bash
+FLINT_CACHE_EXPIRY=0 flint stale
+```
+
+To use a custom cache directory:
+```bash
+flint stale --cache-dir /tmp/flint-cache
+FLINT_CACHE_DIR=/tmp/flint-cache flint stale
 ```
 
 For non-interactive updates:
@@ -266,6 +293,11 @@ In quiet mode, `flint` exits non-zero when duplicate dependencies are found.
 
 `flint stale` resolves the requested flake path through `nix flake metadata`, reads the local `lastModified` values from the lock file, evaluates the input URLs from `flake.nix`, and then refreshes each input's remote flake metadata.
 
+Remote fetch results are cached in `flint.json` under the configured cache
+directory. The default cache expiry is 86400 seconds. Use
+`--cache-expiry 0` or `FLINT_CACHE_EXPIRY=0` to bypass the cache and fetch fresh
+remote metadata on every run.
+
 Each input is categorized as:
 - `OUT OF DATE`: the remote timestamp exceeds the local timestamp by more than the configured threshold.
 - `UP TO DATE`: the remote timestamp is within the threshold.
@@ -312,7 +344,8 @@ The repository uses `lefthook` for local automation:
 ### Structure
 
 - `flint/src/cli`: Clap argument definitions and command dispatch.
-- `flint/src/metadata`: Nix metadata queries, stale checks, source URL lookup, flake-path resolution, and stale input updates.
+- `flint/src/cache`: stale-input cache serialization, loading, expiry handling, and cached fetch errors.
+- `flint/src/metadata`: Nix metadata queries, stale checks, source URL lookup, flake-path resolution, stale input updates, and remote modified-time fetching.
 - `flint/src/ast`: Tree-sitter-based flake.nix edits for duplicate input consolidation.
 - `flint/src/modified_time`: input status types and terminal display helpers.
 - `flint/src/command`: external command execution with timeout handling.

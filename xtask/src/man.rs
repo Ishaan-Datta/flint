@@ -61,6 +61,17 @@ pub fn generate(out_dir: &str) -> Result<(), String> {
             "Stale input threshold in seconds for the stale subcommand.",
         ),
         (
+            "FLINT_CACHE_DIR",
+            "Directory used to store the stale-input cache file. Defaults to \
+             $XDG_CACHE_HOME/flint when XDG_CACHE_HOME is set, otherwise \
+             $HOME/.cache/flint.",
+        ),
+        (
+            "FLINT_CACHE_EXPIRY",
+            "Maximum stale-input cache age in seconds. Set to 0 to bypass the \
+             cache and fetch remote metadata on every stale check.",
+        ),
+        (
             "FLINT_OVERRIDE",
             "Default value for --yes. When enabled, write operations do not \
              prompt before overwriting existing unstaged changes.",
@@ -91,6 +102,14 @@ pub fn generate(out_dir: &str) -> Result<(), String> {
             "Lockfile updated by nix flake update during auto-update.",
         ),
         (
+            "$XDG_CACHE_HOME/flint/flint.json",
+            "Default stale-input cache file when XDG_CACHE_HOME is set.",
+        ),
+        (
+            "$HOME/.cache/flint/flint.json",
+            "Fallback stale-input cache file when XDG_CACHE_HOME is not set.",
+        ),
+        (
             "flake.nix.bak",
             "Backup created when running duplicates --fix with backups \
              enabled.",
@@ -114,6 +133,22 @@ pub fn generate(out_dir: &str) -> Result<(), String> {
         (
             "Set the stale threshold with an env var",
             "FLINT_UPDATE_THRESHOLD=604800 flint stale",
+        ),
+        (
+            "Bypass the stale-input cache and fetch remote metadata",
+            "flint stale --cache-expiry 0",
+        ),
+        (
+            "Bypass the stale-input cache with an env var",
+            "FLINT_CACHE_EXPIRY=0 flint stale",
+        ),
+        (
+            "Use a custom stale-input cache directory",
+            "flint stale --cache-dir /tmp/flint-cache",
+        ),
+        (
+            "Use a custom stale-input cache directory with an env var",
+            "FLINT_CACHE_DIR=/tmp/flint-cache flint stale",
         ),
         ("Auto-update stale inputs", "flint stale --auto-update"),
         (

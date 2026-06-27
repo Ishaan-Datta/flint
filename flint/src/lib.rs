@@ -1,4 +1,5 @@
 pub mod ast;
+pub mod cache;
 pub mod cli;
 pub mod command;
 pub mod errors;

@@ -1,5 +1,5 @@
 mod verbosity;
-use std::{process::exit, time::Duration};
+use std::{path::PathBuf, process::exit, time::Duration};
 
 use anstyle::Style;
 use clap::{ArgAction, Parser, Subcommand, ValueHint, builder::Styles};
@@ -92,7 +92,11 @@ Examples:
   flint stale --update-threshold 604800
   flint stale --auto-update
   flint stale --auto-update --yes
+  flint stale --cache-expiry 0
+  flint stale --cache-dir /tmp/flint-cache
   FLINT_UPDATE_THRESHOLD=604800 flint stale
+  FLINT_CACHE_EXPIRY=0 flint stale
+  FLINT_CACHE_DIR=/tmp/flint-cache flint stale
   FLINT_LOG_LEVEL=off flint stale
 "
     )]
@@ -110,6 +114,15 @@ Examples:
         /// Auto update inputs that are classified as stale
         #[arg(short, long, default_value_t = false)]
         auto_update:      bool,
+        /// Directory used to store the stale-input cache file
+        #[arg(long, env = "FLINT_CACHE_DIR", value_hint = ValueHint::DirPath)]
+        cache_dir:        Option<PathBuf>,
+        /// Maximum cache age in seconds before remote metadata is fetched
+        /// again
+        ///
+        /// Use 0 to bypass the cache and fetch remote metadata on every run.
+        #[arg(long, env = "FLINT_CACHE_EXPIRY", default_value_t = 86400)]
+        cache_expiry:     u64,
     },
     #[command(
         arg_required_else_help = false,
@@ -192,8 +205,29 @@ pub fn main() -> Result<()> {
         Commands::Stale {
             update_threshold,
             auto_update,
+            cache_dir,
+            cache_expiry,
         } => {
             let update_threshold = Duration::from_secs(*update_threshold);
+
+            let cache_dir = cache_dir.clone().unwrap_or_else(|| {
+                if let Some(xdg_cache_home) = std::env::var_os("XDG_CACHE_HOME")
+                {
+                    PathBuf::from(xdg_cache_home).join("flint")
+                } else {
+                    if let Some(home) = std::env::var_os("HOME") {
+                        PathBuf::from(home).join(".cache").join("flint")
+                    } else {
+                        tracing::error!(
+                            "Could not determine cache directory; set \
+                             FLINT_CACHE_DIR, XDG_CACHE_HOME, or HOME"
+                        );
+                        exit(1);
+                    }
+                }
+            });
+
+            let cache_file = cache_dir.join("flint.json");
             check_flake_inputs(
                 update_threshold,
                 timeout,
@@ -201,6 +235,8 @@ pub fn main() -> Result<()> {
                 *auto_update,
                 override_bool,
                 &flake_dir_path,
+                cache_file,
+                *cache_expiry,
             );
             exit(0);
         },

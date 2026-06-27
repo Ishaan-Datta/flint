@@ -161,9 +161,16 @@ pub(crate) fn assert_single_input_url(
 
     let urls = get_input_urls(TIMEOUT, dir.path())?;
 
-    let expected = HashMap::from([(input_name.to_string(), url.to_string())]);
+    assert_eq!(
+        urls.len(),
+        1,
+        "expected exactly one input URL, got {urls:?}",
+    );
 
-    assert_eq!(urls, expected);
+    let actual = &urls[0];
+
+    assert_eq!(actual.input_name, input_name);
+    assert_eq!(actual.input_url, url);
 
     Ok(())
 }

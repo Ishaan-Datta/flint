@@ -14,12 +14,14 @@ use unicode_width::UnicodeWidthStr;
 use yansi::{Paint, Painted};
 
 use crate::{
+    cache::{read_cache, write_cache},
     command::run_command_with_timeout,
     errors::{CommandError, FetchError},
     metadata::{get_input_urls, update_inputs::update_stale_flake_inputs},
     modified_time::{
         Input,
         InputStatus,
+        RemoteInput,
         format_status_line,
         print_summary_message,
     },
@@ -32,29 +34,32 @@ const LOCAL_MODIFIED_TIME_CMD: &str = r"nix flake metadata --json --no-write-loc
 
 /// Fetch the remote modified time for a single flake URL.
 ///
+/// Runs `nix --refresh flake metadata` for the given URL and parses
+/// `.lastModified` from the JSON output.
+///
 /// # Arguments
 ///
-/// * `url` - The flake input URL to query.
+/// * `url` - Flake input URL to query.
 /// * `timeout` - Maximum time allowed for the metadata command.
 ///
 /// # Returns
 ///
-/// Returns the remote `lastModified` timestamp as seconds since epoch.
+/// Returns the remote `lastModified` timestamp as seconds since the Unix epoch.
 ///
 /// # Errors
 ///
-/// Returns an error if the metadata command fails or the output cannot be
-/// parsed.
+/// Returns `FetchError` if the command fails, exits with a non-zero status,
+/// emits invalid UTF-8, or returns a timestamp that cannot be parsed.
 pub fn get_remote_modified_time(
     url: &str,
     timeout: Duration,
-) -> Result<i64, FetchError> {
+) -> Result<u64, FetchError> {
     let cmd = REMOTE_MODIFIED_TIME_CMD.replace("{URL}", url);
     let output = run_command_with_timeout(&cmd, timeout)?;
 
     if output.status.success() {
         let s = String::from_utf8(output.stdout)?;
-        Ok(s.trim().parse::<i64>()?)
+        Ok(s.trim().parse::<u64>()?)
     } else {
         let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
@@ -65,25 +70,29 @@ pub fn get_remote_modified_time(
     }
 }
 
-/// Get the last updated time for all local flake inputs.
+/// Get the locked local modified times for all flake inputs.
+///
+/// Runs `nix flake metadata` for the local flake path and parses the
+/// `locked.lastModified` value for each lock node.
 ///
 /// # Arguments
 ///
 /// * `timeout` - Maximum time allowed for the metadata command.
-/// * `flake_dir_path` - Path to the flake directory containing `flake.nix`.
+/// * `flake_dir_path` - Path to the flake directory.
 ///
 /// # Returns
 ///
-/// Returns a map of input names to optional `lastModified` timestamps.
+/// Returns a map of input names to optional local `lastModified` timestamps.
+/// Inputs without a locked timestamp are represented as `None`.
 ///
 /// # Errors
 ///
-/// Returns an error if the metadata command fails or the JSON output cannot be
-/// parsed.
+/// Returns `FetchError` if the command fails, exits with a non-zero status, or
+/// emits JSON that cannot be parsed into the expected map.
 pub fn get_all_local_modified_times(
     timeout: Duration,
     flake_dir_path: &Path,
-) -> Result<HashMap<String, Option<i64>>, FetchError> {
+) -> Result<HashMap<String, Option<u64>>, FetchError> {
     if !PathBuf::from(flake_dir_path).join("flake.lock").exists() {
         tracing::warn!(
             "Flake.lock file does not exist in: {}, taking longer to rebuild \
@@ -97,7 +106,7 @@ pub fn get_all_local_modified_times(
     let output = run_command_with_timeout(&cmd, timeout)?;
 
     if output.status.success() {
-        let mod_map: HashMap<String, Option<i64>> =
+        let mod_map: HashMap<String, Option<u64>> =
             serde_json::from_slice(&output.stdout)?;
         tracing::trace!("{mod_map:#?}");
         Ok(mod_map)
@@ -111,16 +120,33 @@ pub fn get_all_local_modified_times(
     }
 }
 
-/// Print a formatted summary of remote input modified times.
+/// Check local flake inputs against their latest remote modified times.
+///
+/// Fetches local lock-file timestamps, resolves declared input URLs, obtains
+/// remote timestamps using the cache when possible, prints a grouped status
+/// summary, and optionally updates stale inputs.
 ///
 /// # Arguments
 ///
-/// * `threshold` - Duration used to decide whether an input is stale.
-/// * `timeout` - Maximum time allowed for metadata commands.
-/// * `quiet` - Whether to suppress output and exit on stale inputs.
-/// * `auto_update` - Whether to auto-update stale inputs.
-/// * `override_bool` - Skip modification checks when true.
-/// * `flake_dir_path` - Path to the flake directory containing `flake.nix`.
+/// * `threshold` - Maximum allowed age difference between local and remote
+///   timestamps before an input is considered stale.
+/// * `timeout` - Maximum time allowed for each Nix metadata command.
+/// * `quiet` - Suppress status output and use the process exit code to report
+///   whether stale inputs were found.
+/// * `auto_update` - Update stale inputs after checking.
+/// * `override_bool` - Passed to the update path to override normal update
+///   behavior.
+/// * `flake_dir_path` - Path to the flake directory.
+/// * `cache_file_path` - Path to the remote modified-time cache file.
+/// * `cache_expiry` - Maximum cache age in seconds.
+///
+/// # Exits
+///
+/// Exits with code `1` when local metadata or input URL discovery fails. In
+/// quiet mode, exits with code `1` as soon as a stale input is found and exits
+/// with code `0` when no stale inputs are found. Also exits with code `1` if
+/// auto-update is enabled and updating stale inputs fails.
+#[allow(clippy::too_many_arguments)]
 pub fn check_flake_inputs(
     threshold: Duration,
     timeout: Duration,
@@ -128,6 +154,8 @@ pub fn check_flake_inputs(
     auto_update: bool,
     override_bool: bool,
     flake_dir_path: &Path,
+    cache_file_path: PathBuf,
+    cache_expiry: u64,
 ) {
     let start_time = std::time::Instant::now();
 
@@ -144,7 +172,12 @@ pub fn check_flake_inputs(
             exit(1);
         });
 
-    let fetched_times = get_all_remote_modified_times(&input_urls, timeout);
+    let fetched_times = get_all_remote_modified_times(
+        &input_urls,
+        timeout,
+        cache_file_path,
+        cache_expiry,
+    );
 
     if current_times.len() != fetched_times.len() {
         tracing::debug!(
@@ -157,12 +190,15 @@ pub fn check_flake_inputs(
 
     let mut inputs = Vec::<Input>::new();
     for (input, new_time) in &fetched_times {
-        let mut input_struct = Input::new(
-            input,
-            current_times.get(input).unwrap_or(&None).as_ref(),
+        let input_struct = Input::new(
+            &input.input_name,
+            current_times
+                .get(&input.input_name)
+                .unwrap_or(&None)
+                .as_ref(),
             new_time,
+            threshold,
         );
-        input_struct.get_status(threshold);
 
         if quiet {
             if input_struct.clone().status == InputStatus::Stale {
@@ -183,7 +219,7 @@ pub fn check_flake_inputs(
 
     let name_width = fetched_times
         .keys()
-        .map(|input: &String| input.width())
+        .map(|input: &RemoteInput| input.input_name.width())
         .max()
         .unwrap_or(0)
         + 1;
@@ -237,25 +273,34 @@ pub fn check_flake_inputs(
     }
 }
 
-/// Fetch the remote modified times for all flake input URLs.
+/// Fetch remote modified times for all flake inputs.
+///
+/// If a valid, unexpired cache file exists, returns the cached entries without
+/// running remote metadata commands. Otherwise fetches each remote input in
+/// parallel, writes the result map to the cache, and returns the freshly
+/// fetched results.
 ///
 /// # Arguments
 ///
-/// * `url_map` - Map of input names to their URLs.
-/// * `timeout` - Maximum time allowed for each metadata command.
+/// * `remote_inputs` - Remote flake inputs to fetch.
+/// * `timeout` - Maximum time allowed for each remote metadata command.
+/// * `cache_file_path` - Path to the remote modified-time cache file.
+/// * `cache_expiry` - Maximum cache age in seconds.
 ///
 /// # Returns
 ///
-/// Returns a map of input names to per-input results containing timestamps or
-/// errors.
+/// Returns a map from each `RemoteInput` to either its remote `lastModified`
+/// timestamp or the `FetchError` produced while fetching it.
 ///
 /// # Panics
 ///
-/// Panics if the progress style template is invalid.
-pub(crate) fn get_all_remote_modified_times(
-    url_map: &HashMap<String, String>,
+/// Panics if the progress style templates are invalid.
+pub fn get_all_remote_modified_times(
+    remote_inputs: &[RemoteInput],
     timeout: Duration,
-) -> HashMap<String, Result<i64, FetchError>> {
+    cache_file_path: PathBuf,
+    cache_expiry: u64,
+) -> HashMap<RemoteInput, Result<u64, FetchError>> {
     let header_span = info_span!("modified_times");
     header_span.pb_set_style(
         &ProgressStyle::with_template(
@@ -265,51 +310,74 @@ pub(crate) fn get_all_remote_modified_times(
         .progress_chars("#>-")
         .tick_chars("⠋⠙⠹⠸⢰⣠⣄⡆⡇⡏⠏⠛ "),
     );
-    header_span.pb_set_length(url_map.len() as u64);
+    header_span.pb_set_length(remote_inputs.len() as u64);
     header_span.pb_set_message("Fetching remote modified times");
     let header_enter = header_span.enter();
 
-    let map: Vec<(String, String)> = url_map.clone().into_iter().collect();
-    let modified_map: HashMap<String, Result<i64, FetchError>> = map
-        .par_iter()
-        .map({
-            let header_span = header_span.clone();
+    if let Some(entries) = read_cache(&cache_file_path, cache_expiry) {
+        tracing::debug!("Using remote cache entries: {entries:#?}");
+        entries
+    } else {
+        tracing::debug!("Fetching fresh entries from remotes instead of cache");
+        let modified_map: HashMap<RemoteInput, Result<u64, FetchError>> =
+            remote_inputs
+                .par_iter()
+                .map({
+                    let header_span = header_span.clone();
 
-            move |(input, url)| {
-                let item_span = info_span!(
-                    parent: &header_span,
-                    "input",
-                    input = %input,
-                    url = %url,
-                );
-                item_span.pb_set_style(
-                    &ProgressStyle::with_template("  {spinner} {msg}")
-                        .expect("Progress style should be created")
-                        .tick_chars("⠋⠙⠹⠸⢰⣠⣄⡆⡇⡏⠏⠛ "),
-                );
-                let ts = item_span.in_scope(|| {
-                    item_span.pb_set_message(&format!("Fetching {url}"));
-                    let ts = get_remote_modified_time(url, timeout);
-                    match &ts {
-                        Ok(_) => {
-                            item_span.pb_set_message(&format!("Fetched {url}"));
-                        },
-                        Err(e) => {
-                            tracing::debug!("Failed to fetch {url}: {e}");
-                            item_span.pb_set_message(&format!("Failed {url}"));
-                        },
+                    move |remote_input| {
+                        let input = remote_input.input_name.clone();
+                        let url = remote_input.input_url.clone();
+
+                        let item_span = info_span!(
+                            parent: &header_span,
+                            "input",
+                            input = %input,
+                            url = %url,
+                        );
+                        item_span.pb_set_style(
+                            &ProgressStyle::with_template("  {spinner} {msg}")
+                                .expect("Progress style should be created")
+                                .tick_chars("⠋⠙⠹⠸⢰⣠⣄⡆⡇⡏⠏⠛ "),
+                        );
+                        let ts = item_span.in_scope(|| {
+                            item_span
+                                .pb_set_message(&format!("Fetching {url}"));
+                            let ts = get_remote_modified_time(&url, timeout);
+                            match &ts {
+                                Ok(_) => {
+                                    item_span.pb_set_message(&format!(
+                                        "Fetched {url}"
+                                    ));
+                                },
+                                Err(e) => {
+                                    tracing::debug!(
+                                        "Failed to fetch {url}: {e}"
+                                    );
+                                    item_span.pb_set_message(&format!(
+                                        "Failed {url}"
+                                    ));
+                                },
+                            }
+                            ts
+                        });
+
+                        header_span.pb_inc(1);
+                        (remote_input.clone(), ts)
                     }
-                    ts
-                });
+                })
+                .collect();
 
-                header_span.pb_inc(1);
-                (input.clone(), ts)
-            }
-        })
-        .collect();
+        drop(header_enter);
+        drop(header_span);
+        tracing::trace!("{modified_map:#?}");
 
-    drop(header_enter);
-    drop(header_span);
-    tracing::trace!("{modified_map:#?}");
-    modified_map
+        if let Err(e) = write_cache(&modified_map, cache_file_path) {
+            tracing::warn!("Failed to save entries to cache: {e}");
+        } else {
+            tracing::info!("Successfully saved entries to cache");
+        }
+
+        modified_map
+    }
 }
