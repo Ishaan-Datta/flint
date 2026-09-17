@@ -1,29 +1,93 @@
-name: "Build FLint"
+name: "Build and publish Nix cache"
 
 on:
-  workflow_dispatch:
-  pull_request:
-    branches: ["main"]
   push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: nix-cache
+  cancel-in-progress: false
 
 jobs:
-  build-linux:
-    name: "Build FLint on Linux"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: cachix/install-nix-action@master
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@v6
-      - name: Build FLint with Nix
-        run: nix build -L --no-link
   build-darwin:
     name: "Build FLint on Darwin"
     runs-on: macos-latest
+
     steps:
-      - uses: cachix/install-nix-action@master
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
       - name: Build FLint with Nix
-        run: nix build -L --no-link
+        run: |
+          nix build --no-link --print-build-logs --print-out-paths \
+            | tee /tmp/store-paths.txt
+
+      # Publish Darwin NARs to the GitHub release but don't deploy github pages here
+      - name: Publish Darwin binary cache
+        uses: Ishaan-Datta/static-nix-cache/deploy@master
+        with:
+          paths-file: /tmp/store-paths.txt
+          backend: github-releases
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-release-tag: nix-cache
+          signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
+
+  build-linux:
+    name: "Build FLint on Linux"
+    needs: build-darwin
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Build FLint with Nix
+        run: |
+          nix build --print-build-logs --print-out-paths \
+            | tee /tmp/store-paths.txt
+
+      - name: Publish binary cache
+        uses: Ishaan-Datta/static-nix-cache/deploy@master
+        with:
+          paths-file: /tmp/store-paths.txt
+          backend: github-releases
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-release-tag: nix-cache
+          signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
+          static: ./site
+
+      - name: Make NAR URLs work on GitHub Pages
+        env:
+          RELEASE_BASE: https://github.com/${{ github.repository }}/releases/download/nix-cache
+        run: |
+          find ./site -type f -name '*.narinfo' \
+            -exec sed -i "s|^URL: nar/|URL: ${RELEASE_BASE}/|" {} +
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./site
+
+      - name: Deploy GitHub Pages
+        id: pages
+        uses: actions/deploy-pages@v4
