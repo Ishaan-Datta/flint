@@ -2,10 +2,10 @@
   <h1 id="header">FLint</h1>
   <h3>Flake Lock lint</h3>
 
-  <a href="https://github.com/Ishaan-Datta/flint/actions"> <img src="https://github.com/Ishaan-Datta/flint/actions/workflows/build.yml/badge.svg" alt="Build Status"></a>
-  <a href="https://github.com/Ishaan-Datta/flint/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Ishaan-Datta/flint?label=License" alt="License"/>
-  <a href="https://deps.rs/repo/github/Ishaan-Datta/flint"><img src="https://deps.rs/repo/github/Ishaan-Datta/flint/status.svg" alt="Dependency Status"/>
-  <br/>
+<a href="https://github.com/Ishaan-Datta/flint/actions"> <img src="https://github.com/Ishaan-Datta/flint/actions/workflows/build.yml/badge.svg" alt="Build Status"></a>
+<a href="https://github.com/Ishaan-Datta/flint/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Ishaan-Datta/flint?label=License" alt="License"/>
+<a href="https://deps.rs/repo/github/Ishaan-Datta/flint"><img src="https://deps.rs/repo/github/Ishaan-Datta/flint/status.svg" alt="Dependency Status"/>
+<br/>
 
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./assets/intro.gif">
@@ -13,8 +13,9 @@
     <img alt="Intro GIF" src="./assets/intro.gif">
   </picture>
 
-  <a href="#what-does-it-do">Synopsis</a> | <a href="#features">Features</a> | <a href="#usage">Usage</a> | <a href="#contributing">Contributing</a>
-  <br/>
+<a href="#what-does-it-do">Synopsis</a> | <a href="#features">Features</a> | <a href="#usage">Usage</a> | <a href="#contributing">Contributing</a>
+<br/>
+
 </div>
 
 ## What Does it Do?
@@ -45,6 +46,7 @@ output and safe defaults.
 As this package isn't published on Nixpkgs, for system installation you will need to add the flake input and add the package using either the overlay or default package:
 
 `flake.nix`
+
 ```nix
 {
   inputs = {
@@ -58,6 +60,7 @@ As this package isn't published on Nixpkgs, for system installation you will nee
 ```
 
 Adding it using the overlay:
+
 ```nix
 { inputs, pkgs, ... }:
 
@@ -73,6 +76,7 @@ Adding it using the overlay:
 ```
 
 Adding it using the default package:
+
 ```nix
 { inputs, pkgs, ... }:
 
@@ -86,8 +90,60 @@ Adding it using the default package:
 Flint also installs generated man pages and shell completions. Once the package is added, the flint manual page and supported shell completions are made available through the normal NixOS/Home-Manager profile mechanisms.
 
 For trying the utility without installing:
+
 ```bash
 nix run github:Ishaan-Datta/flint
+```
+
+## Binary Cache
+
+Pre-built packages are published to a Nix binary cache backed by GitHub Pages and GitHub Releases.
+
+### Flake configuration
+
+Add the cache to your flake's `nixConfig`:
+
+```nix
+{
+  nixConfig = {
+    extra-substituters = [
+      "https://ishaan-datta.github.io/flint/"
+    ];
+
+    extra-trusted-public-keys = [
+      "flint-1:me6BYl4id3We828xqHXTRVBFjA3FI1aHdIgTAZV6XJ8="
+    ];
+  };
+}
+```
+
+Nix may prompt you to accept these flake-provided configuration options the first time you use the flake.
+
+### NixOS configuration
+
+To configure the cache system-wide on NixOS:
+
+```nix
+{
+  nix.settings = {
+    extra-substituters = [
+      "https://ishaan-datta.github.io/flint/"
+    ];
+
+    extra-trusted-public-keys = [
+      "flint-1:me6BYl4id3We828xqHXTRVBFjA3FI1aHdIgTAZV6XJ8="
+    ];
+  };
+}
+```
+
+After rebuilding your system, Nix will automatically use the cache whenever a matching store path is available. You can also test the cache without changing your system configuration:
+
+```sh
+nix build github:Ishaan-Datta/flint \
+  --option extra-substituters https://ishaan-datta.github.io/flint/ \
+  --option extra-trusted-public-keys \
+    'flint-1:me6BYl4id3We828xqHXTRVBFjA3FI1aHdIgTAZV6XJ8='
 ```
 
 ## Usage
@@ -98,13 +154,13 @@ flint [OPTIONS] <COMMAND>
 
 ### Global options
 
-| Option               | Environment variable | Default | Description                                             |
-| -------------------- | -------------------- | ------- | ------------------------------------------------------- |
-| `-p, --path <PATH>`  | `FLINT_FLAKE_PATH`   | `.`     | Directory containing `flake.nix`.                       |
-| `-t, --timeout <MS>` | `FLINT_CMD_TIMEOUT`  | `25000` | Timeout for external commands, in milliseconds.         |
-| `-y, --yes`          | `FLINT_OVERRIDE`     | `false` | Skip prompts before overwriting unstaged changes.       |
-| `-v, --verbose...`   | `FLINT_LOG_LEVEL`    | `info`  | Increase tracing verbosity.                             |
-| `-q, --quiet`        | `FLINT_LOG_LEVEL`    | `false` | Enable quiet/check mode and suppress normal output.     |
+| Option               | Environment variable | Default | Description                                         |
+| -------------------- | -------------------- | ------- | --------------------------------------------------- |
+| `-p, --path <PATH>`  | `FLINT_FLAKE_PATH`   | `.`     | Directory containing `flake.nix`.                   |
+| `-t, --timeout <MS>` | `FLINT_CMD_TIMEOUT`  | `25000` | Timeout for external commands, in milliseconds.     |
+| `-y, --yes`          | `FLINT_OVERRIDE`     | `false` | Skip prompts before overwriting unstaged changes.   |
+| `-v, --verbose...`   | `FLINT_LOG_LEVEL`    | `info`  | Increase tracing verbosity.                         |
+| `-q, --quiet`        | `FLINT_LOG_LEVEL`    | `false` | Enable quiet/check mode and suppress normal output. |
 
 ### Global environment variables
 
@@ -124,6 +180,7 @@ using cached results, use `flint stale --cache-expiry 0`.
 
 `flint` logs at `info` by default. `-v` enables debug logging, and `-vv`
 enables trace logging. Additional `v`s remain at trace level:
+
 ```bash
 flint -v stale
 flint -vv stale
@@ -131,6 +188,7 @@ flint -vv stale
 
 `-q/--quiet` is not a verbosity decrement. It is a hard quiet/check-mode flag:
 normal logging is disabled and commands use check-style output behavior:
+
 ```bash
 flint -q stale
 flint -q duplicates
@@ -152,7 +210,6 @@ FLINT_LOG_LEVEL=off flint -v stale
 The first command runs in quiet/check mode. The second command runs with debug
 logging because -v overrides the environment value.
 
-
 `FLINT_LOG_LEVEL` accepts normal `tracing_subscriber::EnvFilter` values such as
 `error`, `warn`, `info`, `debug`, `trace`, `off`:
 
@@ -160,7 +217,7 @@ logging because -v overrides the environment value.
 FLINT_LOG_LEVEL=trace flint stale   # Most Verbose
 FLINT_LOG_LEVEL=debug flint stale
 FLINT_LOG_LEVEL=info flint stale
-FLINT_LOG_LEVEL=warn flint stale   
+FLINT_LOG_LEVEL=warn flint stale
 FLINT_LOG_LEVEL=error flint stale   # Least Verbose
 
 FLINT_LOG_LEVEL=off flint stale     # Quiet/check mode
@@ -197,27 +254,32 @@ refresh every remote input each time. By default, the cache expires after 86400
 seconds (1 day).
 
 To force fresh remote metadata and bypass the cache:
+
 ```bash
 flint stale --cache-expiry 0
 ```
 
 To update stale inputs automatically:
+
 ```bash
 flint stale --auto-update
 ```
 
 The same behavior can be configured with an environment variable:
+
 ```bash
 FLINT_CACHE_EXPIRY=0 flint stale
 ```
 
 To use a custom cache directory:
+
 ```bash
 flint stale --cache-dir /tmp/flint-cache
 FLINT_CACHE_DIR=/tmp/flint-cache flint stale
 ```
 
 For non-interactive updates:
+
 ```bash
 flint stale --auto-update --yes
 ```
@@ -272,7 +334,7 @@ original file. To skip that backup:
 flint duplicates --fix --no-backup
 ```
 
-If `flake.nix` has unstaged git changes, flint asks before overwriting it. 
+If `flake.nix` has unstaged git changes, flint asks before overwriting it.
 To skip the prompt:
 
 ```bash
@@ -299,6 +361,7 @@ directory. The default cache expiry is 86400 seconds. Use
 remote metadata on every run.
 
 Each input is categorized as:
+
 - `OUT OF DATE`: the remote timestamp exceeds the local timestamp by more than the configured threshold.
 - `UP TO DATE`: the remote timestamp is within the threshold.
 - `ERRORED`: the input could not be fetched or produced inconsistent metadata.
@@ -311,21 +374,24 @@ When `--fix` is enabled, it edits `flake.nix` with a Nix Tree-sitter AST, valida
 
 ## Contributing
 
-If you have bugs, feature requests, or want to contribute, feel free to create an issue or pull request! 
+If you have bugs, feature requests, or want to contribute, feel free to create an issue or pull request!
 
 ### Entering the development environment:
 
 Use either:
+
 ```
 nix develop
 ```
 
 or assuming you have [direnv](https://github.com/direnv/direnv-vscode) and [nix-direnv](https://github.com/nix-community/nix-direnv) setup:
+
 ```
 direnv allow
 ```
 
 ### Useful commands:
+
 ```
 just fmt          # format Rust and TOML
 just fmt-check    # check Rust format
@@ -338,6 +404,7 @@ just test         # run cargo-nextest
 ### Development Tooling:
 
 The repository uses `lefthook` for local automation:
+
 - pre-commit: run formatting and stage fixed files
 - pre-push: check Rust formatting, TOML formatting, and Rust compilation
 
@@ -356,9 +423,8 @@ The repository uses `lefthook` for local automation:
 
 I built this project as an alternative to [locker](https://github.com/tgirlcloud/locker) by [tgirlcloud](https://github.com/tgirlcloud) and [flint](https://github.com/NotAShelf/flint) by [NotAShelf](https://github.com/NotAShelf) to better suit usage with dev environments/CI (ex. pre-commit hooks, flake shell hooks), and add options for resolving the discovered flake issues with Treesitter.
 
-Many features of this project were ~~blatantly stolen~~ heavily inspired by [nh](https://github.com/nix-community/nh), including nix packaging, development tooling, directory structure, and [cargo-xtask](https://github.com/matklad/cargo-xtask ) setup for manpage and shell completions. The display summary formatting for flake input status was copied from [dix](https://github.com/faukah/dix).
+Many features of this project were ~~blatantly stolen~~ heavily inspired by [nh](https://github.com/nix-community/nh), including nix packaging, development tooling, directory structure, and [cargo-xtask](https://github.com/matklad/cargo-xtask) setup for manpage and shell completions. The display summary formatting for flake input status was copied from [dix](https://github.com/faukah/dix).
 
 ## License
 
 This project is licensed under GPLv3. See [LICENSE](./LICENSE).
-

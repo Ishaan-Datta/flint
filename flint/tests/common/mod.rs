@@ -572,7 +572,7 @@ pub(crate) const VALID_FLAKE_LOCK_CONTENT: &str = r#"
         "nixos-generators": "nixos-generators",
         "nixpkgs": "nixpkgs_2",
         "nixpkgs-stable": "nixpkgs-stable",
-        "systems": "systems",
+        "systems": "systems_2",
         "vicinae": "vicinae",
         "vicinae-extensions": "vicinae-extensions",
         "wrapper-modules": "wrapper-modules",

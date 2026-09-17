@@ -1,29 +1,68 @@
-name: "Build FLint"
+name: Build and publish Nix cache
 
 on:
-  workflow_dispatch:
-  pull_request:
-    branches: ["main"]
   push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: nix-cache
+  cancel-in-progress: false
 
 jobs:
-  build-linux:
-    name: "Build FLint on Linux"
+  build:
+    name: Build ${{ matrix.system }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-latest
+          - system: aarch64-darwin
+            runner: macos-latest
+
+    runs-on: ${{ matrix.runner }}
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Build WFAS
+        run: nix build --print-build-logs
+
+      - name: Save Nix cache
+        uses: Ishaan-Datta/static-nix-cache/save@v1.2.0
+        with:
+          name: ${{ matrix.system }}
+
+  deploy:
+    name: Publish Nix cache
+    needs: build
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.cache.outputs.page-url }}
+
     steps:
-      - uses: cachix/install-nix-action@master
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Deploy Nix cache
+        id: cache
+        uses: Ishaan-Datta/static-nix-cache/deploy@v1.2.0
         with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@v6
-      - name: Build FLint with Nix
-        run: nix build -L --no-link
-  build-darwin:
-    name: "Build FLint on Darwin"
-    runs-on: macos-latest
-    steps:
-      - uses: cachix/install-nix-action@master
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/checkout@v6
-      - name: Build FLint with Nix
-        run: nix build -L --no-link
+          signing-key: ${{ secrets.NIX_CACHE_SIGNING_KEY }}
+          prune: true
